@@ -467,6 +467,7 @@ function homeTop(){
 }
 function moreTiles(){
   return el("div",{class:"catgrid"},
+    tile("🪜","Seerhi","Basic → Intermediate → Advanced → Pro",()=>go("seerhi"),true),
     tile("📚","Courses","Roz 10 minute, tarteeb se",()=>go("courses")),
     tile("📄","Kitaab / PDF","Kitaab daalo, chapter-wise samjho",()=>go("kitaab")),
     tile("🩺","Expert check","Doctor, mechanic, aalim ki baat parkho",()=>{S.likhoMode="expert";go("likho");}),
@@ -710,6 +711,65 @@ function Naqsha(){
     el("section",{class:"card hot"},el("div",{class:"row"},b),blk.wrap)];
 }
 
+/* ---------- Seerhi: Basic -> Intermediate -> Advanced -> Pro ---------- */
+EXTRA.seerhi=Seerhi; EXTRA.seerhiView=SeerhiView;
+const LEVELS=["Basic","Intermediate","Advanced","Pro"];
+const LEVEL_HOW={Basic:"bilkul shuru se, koi pichla ilm farz mat karo, rozmarra misaalein",Intermediate:"bunyaad ho chuki, ab mechanism, terms aur aam ghaltiyan",Advanced:"gehri details, numbers, exceptions, mushkil cases",Pro:"expert/professional level: jo sirf field ke log jaante hain, judge karna, behas jeetna, edge cases"};
+const SEERHI_IDEAS=["Aurat ki sehat: periods, pregnancy aur saath kaise dein","Bra size aur sahi fitting ki samajh","Mardana sehat aur kamzori","Aurton ki aam bimariyan","Dog paalna, training aur bimariyan","Ek nazar mein logon ko pehchanna","Bare masle mein khud ko calm rakhna","Insani jism kaise kaam karta hai","Car ki poori samajh","Paisa aur investment"];
+function saveLadders(l){ return store.settings({ladders:l}); }
+async function makeLadder(topic,cat,sub,btn,msg){
+  if(needAI()) return; if(!topic){toast("Topic likho");return;}
+  if(btn) btn.disabled=true; if(msg) msg.replaceChildren(el("p",{class:"thinking",text:"Seerhi ban rahi hai"}));
+  try{
+    const j=await S.sample.json(persona()+`\n\nUser "${topic}" ko SEERHI ki tarah seekhna chahta hai: 4 level (Basic, Intermediate, Advanced, Pro). Har level mein 5-6 topics, tarteeb se, har topic pichle par build kare. Basic bilkul zero se; Pro itna ke user is field ke expert ko judge kar sake. Agar sehat ka topic hai to ilmi aur ba-izzat rakho.\nReply sirf JSON: {"title":"chhota title","cat":"category (${Object.keys(CATS).join(", ")})","sub":"subcategory","levels":[{"name":"Basic","goal":"is level ke baad user kya kar sakega","topics":["..."]},{"name":"Intermediate","goal":"...","topics":["..."]},{"name":"Advanced","goal":"...","topics":["..."]},{"name":"Pro","goal":"...","topics":["..."]}]}`,{cache:false});
+    const lv=(j&&Array.isArray(j.levels)?j.levels:[]).slice(0,4).map((x,i)=>({name:LEVELS[i],goal:String(x&&x.goal||""),topics:((x&&x.topics)||[]).filter(Boolean).map(String).slice(0,8)})).filter(x=>x.topics.length);
+    if(lv.length<4) throw {code:"bad_json"};
+    const L={id:uid(),title:String(j.title||topic),cat:cat||normCat(j.cat),sub:sub||String(j.sub||""),levels:lv,done:[],start:Date.now()};
+    await saveLadders([L,...(S.settings.ladders||[])]); S.ladLevel=null; go("seerhiView",L.id);
+  }catch(e){ if(msg) msg.replaceChildren(el("p",{class:"err",text:errMsg(e)})); else toast(errMsg(e)); if(btn) btn.disabled=false; }
+}
+function ladderCard(cat,sub){
+  if(cat==="Zabanein"||cat==="Duniya") return null;
+  const area=sub||cat; const have=(S.settings.ladders||[]).find(l=>l.sub===area||l.title===area);
+  const b=el("button",{class:"btn primary",type:"button"},have?"🪜 Seerhi kholo: "+have.title:"🪜 "+area+": Basic se Pro tak");
+  const msg=el("div"); b.onclick=()=>have?go("seerhiView",have.id):makeLadder(area+(sub?" ("+cat+")":""),cat,sub||"",b,msg);
+  return el("section",{class:"card"},el("div",{class:"stamp",text:"Level by level"}),el("p",{class:"small muted",text:"4 level: Basic → Intermediate → Advanced → Pro. Har level ke aakhir mein test."}),el("div",{class:"row"},b),msg);
+}
+function ladderPct(l){ const all=l.levels.reduce((a,x)=>a+x.topics.length,0); return Math.round((l.done||[]).length/all*100); }
+function curLevel(l){ const d=new Set(l.done||[]); return l.levels.findIndex((lv,i)=>lv.topics.some((_,k)=>!d.has(i+"-"+k))); }
+function Seerhi(){
+  const list=S.settings.ladders||[];
+  const t=el("input",{type:"text",placeholder:"Kya seekhna hai? Jaise: Pregnancy mein kya hota hai"});
+  const msg=el("div"); const mk=el("button",{class:"btn primary",type:"button"},"Seerhi banao"); mk.onclick=()=>makeLadder(t.value.trim(),null,null,mk,msg);
+  return [hdr("Basic se Pro tak","🪜 Seerhi","Har mauzu 4 level mein: Basic, Intermediate, Advanced, Pro. Ek level poora karo, test do, agla khulega."),
+    list.length?el("section",{class:"card"},el("div",{class:"stamp",text:"Aap ki seerhiyan"}),el("div",{class:"list"},...list.map(l=>{ const p=ladderPct(l); const lvl=curLevel(l);
+      return el("button",{class:"item",type:"button",onclick:()=>{S.ladLevel=null;go("seerhiView",l.id);}},el("div",{class:"grow"},el("div",{class:"t",text:l.title}),el("div",{class:"bar"},el("i",{style:"width:"+p+"%"})),el("div",{class:"s",text:(lvl<0?"Pro mukammal ✓":"Abhi: "+LEVELS[lvl])+" · "+p+"%"})),el("span",{class:"small muted",text:"→"})); }))):null,
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Nayi seerhi"}),el("div",{class:"row"},el("div",{class:"grow"},t),micBtn(t)),el("div",{class:"row"},mk),msg,
+      el("p",{class:"small muted",text:"Ya inmein se chuno:"}),el("div",{class:"chips"},...SEERHI_IDEAS.map(x=>el("button",{class:"chip",type:"button",onclick:e=>makeLadder(x,null,null,e.currentTarget,msg)},x))))];
+}
+function SeerhiView(id){
+  const list=S.settings.ladders||[]; const l=list.find(x=>x.id===id); if(!l) return [hdr("Seerhi","Nahi mili")];
+  const d=new Set(l.done||[]); const cur=curLevel(l); const li=S.ladLevel!=null?S.ladLevel:(cur<0?3:cur); const lv=l.levels[li];
+  const blk=aiBlock();
+  const levelTabs=el("div",{class:"chips"},...l.levels.map((x,i)=>{ const full=x.topics.every((_,k)=>d.has(i+"-"+k)); const lk=cur>=0&&i>cur;
+    return el("button",{class:"chip",type:"button","aria-pressed":String(i===li),onclick:()=>{S.ladLevel=i;render();}},(full?"✓ ":lk?"🔒 ":"")+x.name); }));
+  const locked=cur>=0&&li>cur;
+  const learn=async(k,btn)=>{ if(needAI()) return; btn.disabled=true;
+    const prev=lv.topics.slice(0,k).join("; ");
+    const r=await runAI({prompt:lessonPrompt(l.cat,l.sub,`Seerhi "${l.title}", LEVEL ${lv.name} (${li+1}/4), topic ${k+1}/${lv.topics.length}: ${lv.topics[k]}. Level ka goal: ${lv.goal}. Gehrai: ${LEVEL_HOW[lv.name]}. Is level mein pehle ho chuke: ${prev||"koi nahi"}.`),kind:"lesson",text:l.title+" · "+lv.name+": "+lv.topics[k],blk,extra:{title:lv.name+" · "+lv.topics[k]}});
+    if(r){ await saveLadders((S.settings.ladders||[]).map(x=>x.id===l.id?{...x,done:[...new Set([...(x.done||[]),li+"-"+k])]}:x)); blk.out.append(el("div",{class:"row"},speakBtn(()=>r.body),el("button",{class:"btn",type:"button",onclick:()=>{render();window.scrollTo(0,0);}},"Agla topic →"))); }
+    btn.disabled=false; };
+  const full=lv.topics.every((_,k)=>d.has(li+"-"+k));
+  const test=el("button",{class:"btn"+(full?" primary":""),type:"button",onclick:()=>{S.quiz=null;go("quiz",{cat:l.cat,sub:l.title+" · "+lv.name+" level ("+lv.topics.join(", ")+")"});}},"📝 "+lv.name+" level test");
+  return [el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>go("seerhi")},"← Seerhiyan")),el("div",{class:"stamp",text:l.cat+" · "+ladderPct(l)+"%"}),el("h1",{text:l.title})),
+    el("div",{class:"bar"},el("i",{style:"width:"+ladderPct(l)+"%"})),levelTabs,
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Level "+(li+1)+": "+lv.name}),el("p",{class:"small muted",text:"Goal: "+lv.goal}),
+      locked?el("p",{class:"small",text:"🔒 Pehle "+l.levels[cur].name+" level poora karo. (Phir bhi parhna ho to neeche topic daba sakte ho.)"}):null,
+      el("div",{class:"list"},...lv.topics.map((t,k)=>{ const b=el("button",{class:"item"+(d.has(li+"-"+k)?" done":""),type:"button"},el("span",{class:"tick",text:d.has(li+"-"+k)?"✓":String(k+1)}),el("div",{class:"grow t",text:t})); b.onclick=()=>learn(k,b); return b; })),
+      el("div",{class:"row"},test),blk.wrap),
+    el("div",{class:"row"},el("button",{class:"btn sm danger",type:"button",onclick:async()=>{ if(!confirm("Yeh seerhi mitayein? (Notes aur cards rahenge)")) return; await saveLadders(list.filter(x=>x.id!==l.id)); go("seerhi"); }},"Seerhi mitao"))];
+}
+
 </script>
 <script>
 "use strict";
@@ -718,8 +778,12 @@ const DAY = 864e5;
 const MARK = "@@@JSON";
 const CATS = {
   "Deen":["Quran","Hadees","Duayein","Fiqh","Seerat","Arabi","Doosre mazahib","Muqabla-e-mazahib"],
+  "Aurat ki sehat":["Periods","Pregnancy","Delivery & baad ka waqt","Bra size & fitting","PCOS & hormones","Aurton ki bimariyan","Breast health","Menopause","Biwi/behen ka saath kaise dein"],
+  "Mard ki sehat":["Mardana kamzori","Testosterone","Fertility","Mardon ki bimariyan","Baal & skin","30 ke baad fitness"],
+  "Janwar":["Dogs","Dog training","Dog ki bimariyan","Billi","Ghoray","Parinday","Gaye & bakri","Janwaron ka ilaj"],
+  "Zehni mazbooti":["Crisis mein calm","Stress & anxiety","Gussa control","Sabar & tawakkul","Ghum se nikalna","Bare faislay","Discipline"],
   "Sehat & Jism":["Human body","Medicines","Pharma","Doctors ka kaam","Bimariyan","Nutrition","Gym","Nashay & asar","MBBS","BDS"],
-  "Psychology":["Apni psychology","Logon ki psychology","Body language","Insaan parhna","Baatein niklwana","Persuasion","Bachay & parenting","Rishtedar","Shaadi","Ladies psychology","Happiness & focus"],
+  "Psychology":["Apni psychology","Logon ki psychology","Body language","Insaan parhna","Ek nazar mein pehchanna","Baatein niklwana","Persuasion","Bachay & parenting","Rishtedar","Shaadi","Ladies psychology","Happiness & focus"],
   "Charisma & Social":["Confidence","Mysterious charm","Communication","Comfortable log","Izzat kaise milay","Love & rishtay","Dating ke adaab","Humor","Voice training","Top 1% kaise banein"],
   "Philosophy & Ideologies":["Philosophy","Communism","Capitalism","Socialism","Feminism","Mardon ke masail","Liberalism","Nationalism","Ideas"],
   "Business & Paisa":["Business model","Businessman mindset","Restaurant & cafe","Software house","Garments","Real estate","Stocks","Crypto","Investment","Banks","Marketing","Bargaining","Businessmen"],
@@ -1601,14 +1665,14 @@ function Seekho(){
 function lessonPrompt(cat,sub,topic,done){
   const where=cat?`Field: ${cat}${sub?" / "+sub:""}.`:"";
   const t=topic?`Topic: ${topic}.`:`Topic tum chuno: is field ka agla sab se kaam ka topic (beginner se expert ki taraf). Yeh pehle ho chuke hain, inhein repeat mat karo: ${(done||[]).join("; ")||"koi nahi"}.`;
-  return persona()+`\n\nGEHRA LESSON. ${where} ${t}\nLevel: itna ke user is field ke expert se behas kar sakein aur ghalti pakar sakein, lekin aasaan zabaan mein.\nStructure:\n## Topic\nEk line mein kya seekhenge.\n## Bunyaad\n## Kaise kaam karta hai\nAndar ki mechanism, misaalon ke saath.\n## Zaroori terms\n8-12 terms aur matlab (table ho to behtar).\n## Expert ko kaise judge karein\nRed flags, aam ghaltiyan aur scams, kya sawal poochein.\n## Aam myths\n## Khud kya kar sakte hain\nAgar applicable ho: chhote kaam jo khud ho sakte hain, aur kab expert ke paas zaroor jayein.\n## Pro sawal\n5 sawal jo expert se poochein to woh samjhe yeh banda jaanta hai.\n## Yaad rakhne ke hooks`+jsonTail("6-10");
+  return persona()+`\n\nGEHRA LESSON. ${where} ${/sehat|Janwar/i.test(cat||"")?"Yeh sehat ka topic hai: seedhi, ilmi aur ba-izzat zabaan (jaise doctor samjhata hai), sharm ki wajah se baat gol mat karo; dawai ki dose khud mat likho, doctor ko refer karo; red flags aur kab foran doctor ke paas jayein zaroor batao.":""} ${t}\nLevel: itna ke user is field ke expert se behas kar sakein aur ghalti pakar sakein, lekin aasaan zabaan mein.\nStructure:\n## Topic\nEk line mein kya seekhenge.\n## Bunyaad\n## Kaise kaam karta hai\nAndar ki mechanism, misaalon ke saath.\n## Zaroori terms\n8-12 terms aur matlab (table ho to behtar).\n## Expert ko kaise judge karein\nRed flags, aam ghaltiyan aur scams, kya sawal poochein.\n## Aam myths\n## Khud kya kar sakte hain\nAgar applicable ho: chhote kaam jo khud ho sakte hain, aur kab expert ke paas zaroor jayein.\n## Pro sawal\n5 sawal jo expert se poochein to woh samjhe yeh banda jaanta hai.\n## Yaad rakhne ke hooks`+jsonTail("6-10");
 }
 function Topic(arg){
   const cat=arg.cat, sub=arg.sub||null;
   const subs=CATS[cat]||[];
   const head=el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>sub?go("topic",{cat}):go("seekho")},"← "+(sub?cat:"Seekho"))),el("div",{class:"stamp",text:cat}),el("h1",{text:sub||cat}));
   const subChips=el("div",{class:"chips"},...subs.map(s=>el("button",{class:"chip",type:"button","aria-pressed":String(s===sub),onclick:()=>go("topic",{cat,sub:s})},s)));
-  const parts=[head,subChips];
+  const parts=[head,subChips,ladderCard(cat,sub)];
   const lessons=S.notes.filter(n=>n.cat===cat&&(!sub||n.sub===sub));
   const doneTitles=lessons.filter(n=>n.kind==="lesson"||n.kind==="language").slice(0,40).map(n=>n.title);
   const topicIn=el("input",{type:"text",id:"topicIn",placeholder:"Khaas topic (optional). Khaali chhoro to Ustad agla topic chunega"});
@@ -1625,7 +1689,7 @@ function Topic(arg){
     });
   } else if(cat==="Duniya"){
     const hl=el("textarea",{id:"headlines",style:"min-height:70px",placeholder:"Aaj ki headlines yahan paste karo (Dawn, BBC, Geo se copy kar ke)"});
-    parts.push(el("section",{class:"card"},el("div",{class:"stamp",text:"Headlines ka analysis"}),el("p",{class:"muted small",text:"Ustad ke paas live internet nahi. Taaza news ke liye headlines paste karo, woh dono taraf ki raaye aur background batayega."}),hl,
+    parts.push(el("section",{class:"card"},el("div",{class:"stamp",text:"Headlines ka analysis"}),el("p",{class:"muted small",text:"Taaza khabron ke liye Aaj > Akhbar kholo. Yahan apni headlines paste karo to Ustad dono taraf ki raaye aur background batayega."}),hl,
       el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:async e=>{ if(!hl.value.trim()){toast("Headlines paste karo");return;} e.target.disabled=true; await runAI({kind:"news",text:hl.value,blk,prompt:persona()+`\n\nUser ne aaj ki yeh headlines di hain:\n"""${hl.value}"""\n\nHar aham khabar ke liye: ## Khabar, background (yeh kyun ho raha hai), Pakistan aur aam aadmi par asar, dono taraf ki raaye, aur ek sawal jo behas mein poocha ja sakta hai. Aakhir mein "## Top 5 headlines ek line mein".`+jsonTail()}); e.target.disabled=false; }},"Analysis karo"))));
     mk("Briefing: "+(sub||"Duniya")+" ka bara manzar",()=>runAI({kind:"news",text:"Briefing "+area,blk,prompt:persona()+`\n\n${area} ka strategic briefing do: bari taqatein aur khiladi, chal rahe bare masail aur unki history, kaunse numbers yaad rakhne chahiye, aur aage kya dekhna hai. Shuru mein likho ke yeh tumhare ilm par mabni hai, live news nahi.`+jsonTail()}),true);
   } else {
