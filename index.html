@@ -192,6 +192,10 @@ label.btn{cursor:pointer;position:relative}
 .num{font-variant-numeric:tabular-nums;font-family:var(--f-mono)}
 details summary{cursor:pointer;font-weight:600}
 .frame h3{color:var(--accent)}
+.cat.hot{border-color:var(--accent)}
+.f.tg{gap:4px}
+.f.tg input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+body.bigfont .flash .q{font-size:23px}
 </style>
 
 <header class="top"><div class="top-in">
@@ -257,6 +261,14 @@ function gemCheck(j){
 
 function makeGemini(){
   async function run(input,opts={},json=false){
+    const web=!json&&!(opts.tools&&opts.tools.length)&&(opts.search||(opts.webAuto&&S.settings.web!==false));
+    if(web||opts.urlContext){
+      try{ return await run1(input,{...opts,_web:web,_url:!!opts.urlContext},json); }
+      catch(e){ if(!e||["cancelled","offline","bad_key","rate_limited","refused"].includes(e.code)||e.name==="AbortError") throw e; }
+    }
+    return run1(input,opts,json);
+  }
+  async function run1(input,opts={},json=false){
     const key=gemKey(); if(!key) throw {code:"no_ai"};
     const msgs=typeof input==="string"?[{role:"user",content:input}]:input;
     const contents=msgs.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:String(m.content||"")}]}));
@@ -264,9 +276,13 @@ function makeGemini(){
       const last=contents[contents.length-1];
       for(const b of opts.images) last.parts.unshift({inline_data:{mime_type:b.type||"image/jpeg",data:await blobB64(b)}});
     }
+    if(opts.parts&&opts.parts.length){ const last=contents[contents.length-1]; last.parts.unshift(...opts.parts); }
     const body={contents,generationConfig:{maxOutputTokens:8192}};
     if(json) body.generationConfig.responseMimeType="application/json";
     const tools=opts.tools||[];
+    const gt=[]; if(opts._web) gt.push({google_search:{}}); if(opts._url) gt.push({url_context:{}}); if(gt.length&&!tools.length) body.tools=gt;
+    const src=new Map(); const grab=c=>{ const g=c&&c.groundingMetadata; for(const k of (g&&g.groundingChunks)||[]){ const w=k.web; if(w&&w.uri&&!src.has(w.uri)) src.set(w.uri,w.title||w.uri); } };
+    const withSrc=t=>{ if(!src.size) return t; const list="\n\n### Sources\n"+[...src].slice(0,8).map(([u,ti])=>"- ["+ti+"]("+u+")").join("\n"); const i=t.indexOf("@@@JSON"); return i<0?t+list:t.slice(0,i).trimEnd()+list+"\n\n"+t.slice(i); };
     if(tools.length) body.tools=[{functionDeclarations:tools.map(t=>{ const d={name:t.name,description:t.description||""}; const sc=t.inputSchema; if(sc&&sc.properties&&Object.keys(sc.properties).length) d.parameters=gemSchema(sc); return d; })}];
     const url=(m,s)=>GEM_BASE+"models/"+m+(s?":streamGenerateContent?alt=sse":":generateContent");
     const hdr={"Content-Type":"application/json","x-goog-api-key":key};
@@ -283,12 +299,13 @@ function makeGemini(){
             const line=buf.slice(0,i).trim(); buf=buf.slice(i+1);
             if(!line.startsWith("data:")) continue;
             let j; try{ j=JSON.parse(line.slice(5)); }catch(e){ continue; }
-            const {c,blocked}=gemCheck(j); if(blocked&&!text) throw {code:"refused"};
+            const {c,blocked}=gemCheck(j); if(blocked&&!text) throw {code:"refused"}; grab(c);
             const d=partsText(c&&c.content); if(d){ text+=d; try{ opts.onText({text,delta:d}); }catch(e){} }
             if(c&&c.finishReason==="MAX_TOKENS") truncated=true;
           }
         }
         if(!text) throw {code:"empty"};
+        if(src.size){ text=withSrc(text); try{ opts.onText({text,delta:""}); }catch(e){} }
         return {text,truncated};
       }
       for(let round=0;round<6;round++){
@@ -308,7 +325,7 @@ function makeGemini(){
           body.contents.push({role:"user",parts:resp});
           continue;
         }
-        text=partsText(c.content); truncated=c.finishReason==="MAX_TOKENS";
+        grab(c); text=partsText(c.content); truncated=c.finishReason==="MAX_TOKENS"; if(text&&!json) text=withSrc(text);
         if(!text) throw {code:"empty"};
         if(opts.onText) try{ opts.onText({text,delta:text}); }catch(e){}
         return {text,truncated};
@@ -366,7 +383,8 @@ function phoneBoot(){
   try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){}
   if("serviceWorker" in navigator&&location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
   S.loaded=true; setPill();
-  if(!gemKey()) go("settings"); else render();
+  applyLook();
+  if(!gemKey()) go("settings"); else { render(); routeStart(); }
 }
 
 /* Settings: AI key, mic language, age */
@@ -395,6 +413,7 @@ function phoneCard(){
     el("label",{class:"f"},"Gemini API key",el("span",{text:"Key sirf is phone mein rehti hai. Kisi ko mat dikhana."}),k),
     el("div",{class:"row"},save,rm),
     el("p",{class:"small muted",text:"Yaad rahe: free plan mein Google baatein apni AI behtar karne ke liye parh sakta hai. Bohot private baatein AI se na poochein. Aap ke notes/cards sirf phone mein save hote hain."}),
+    toggles(),
     el("label",{class:"f"},"Mic ki zabaan",el("span",{text:"Bol kar likhne ke liye"}),mic),
     el("label",{class:"f"},"Aap ki umar",el("span",{text:"Ustad misaalein isi hisaab se dega (optional)"}),age));
 }
@@ -411,6 +430,284 @@ function restoreBtn(){
     f.value="";
   };
   return el("label",{class:"btn"},"Backup wapas lao",f);
+}
+
+function applyLook(){ document.body.style.zoom=S.settings.bigFont?"1.15":""; document.body.classList.toggle("bigfont",!!S.settings.bigFont); }
+function toggles(){
+  const t=(key,label,sub,def)=>{ const on=def?S.settings[key]!==false:!!S.settings[key]; const cb=el("input",{type:"checkbox"}); cb.checked=on;
+    cb.onchange=async()=>{ await store.settings({[key]:cb.checked}); applyLook(); toast(cb.checked?"On ✓":"Off"); };
+    return el("label",{class:"f tg"},el("div",{class:"row",style:"justify-content:space-between;align-items:center"},el("b",{text:label}),cb),el("span",{text:sub})); };
+  return el("div",{class:"stack"},
+    t("web","🌐 Live internet","Sawal ke jawab Google Search se taaza maloomat aur sources ke saath",true),
+    t("simple","🙂 Aasaan mode","Aaj ke page par sirf zaroori cheezein",false),
+    t("bigFont","🔠 Bara font","Sab likhai bari",false));
+}
+
+/* ===== Ustad v2 phone features: Bolo, 5-minute, Akhbar, Share, Courses, Kitaab, Expert check, Ilm ka naqsha ===== */
+const EXTRA={bolo:Bolo,panch:Panch,akhbar:Akhbar,share:ShareIn,courses:Courses,course:CourseView,kitaab:Kitaab,naqsha:Naqsha};
+const hdr=(stamp,title,sub)=>el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>go("aaj")},"← Aaj")),el("div",{class:"stamp",text:stamp}),el("h1",{text:title}),sub?el("p",{class:"muted small",text:sub}):null);
+const tile=(icon,t,s,fn,hot)=>el("button",{class:"cat"+(hot?" hot":""),type:"button",onclick:fn},el("b",{text:icon+" "+t}),el("span",{text:s}));
+const needAI=()=>{ if(!S.sample){ toast(errMsg({code:"no_ai"})); return true; } return false; };
+function speakBtn(getText){
+  return el("button",{class:"btn sm spk",type:"button",onclick:()=>{ const t=getText(); if(!t){toast("Pehle jawab aane do");return;} stopVoice(); speakLines([{text:clean(t).slice(0,6000)}]).then(ok=>{ if(!ok) toast("Is phone par awaaz nahi chali"); }); }},"🔊 Suno");
+}
+function activeCourse(){ return (S.settings.courses||[]).find(c=>(c.done||[]).length<c.days.length); }
+
+/* ---------- Home additions ---------- */
+function homeTop(){
+  const c=activeCourse(); const n=c?(c.done||[]).length:0;
+  return el("section",{class:"card hot"},
+    el("div",{class:"row",style:"gap:16px;align-items:center"},
+      el("button",{class:"bigmic",type:"button","aria-label":"Bolo",onclick:()=>go("bolo",{auto:true}),html:MIC_SVG+"<span>Bolo</span>"}),
+      el("div",{class:"grow stack"},el("div",{class:"stamp",text:"Kuch bhi bolo"}),el("p",{class:"small",text:"Sawal, kaam, rate, ya jo dekha. Ustad khud samjhega kahan rakhna hai."}))),
+    el("div",{class:"row"},
+      el("button",{class:"btn primary",type:"button",onclick:()=>{S.panch=null;go("panch");}},"⚡ 5 minute mode"),
+      el("button",{class:"btn",type:"button",onclick:()=>go("akhbar")},"📰 Aaj ki khabrein"),
+      c?el("button",{class:"btn",type:"button",onclick:()=>go("course",c.id)},"📚 Din "+(n+1)+": "+c.title.slice(0,24)):null));
+}
+function moreTiles(){
+  return el("div",{class:"catgrid"},
+    tile("📚","Courses","Roz 10 minute, tarteeb se",()=>go("courses")),
+    tile("📄","Kitaab / PDF","Kitaab daalo, chapter-wise samjho",()=>go("kitaab")),
+    tile("🩺","Expert check","Doctor, mechanic, aalim ki baat parkho",()=>{S.likhoMode="expert";go("likho");}),
+    tile("🧠","Ilm ka naqsha","Kahan mazboot, kahan kamzor",()=>go("naqsha")),
+    tile("📰","Akhbar & rates","Live khabrein, sona, dollar, petrol",()=>go("akhbar")),
+    tile("📤","Share se bhejo","YouTube, link, WhatsApp forward",()=>go("share",{help:true})));
+}
+function homeMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Aur seekho"}),moreTiles()); }
+function seekhoMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Naye tareeqay"}),moreTiles()); }
+
+/* ---------- Expert check ---------- */
+function expertPrompt(t){
+  return persona()+`\n\nEXPERT CHECK. User ko kisi expert ya dukandar (doctor, mechanic, wakeel, aalim, electrician, property dealer waghera) ne yeh kaha, ya yeh situation hai:\n"""${t}"""\nZaroorat ho to internet se facts aur aam rates check karo.\n## Asal mein kya kaha gaya\nAasaan zabaan mein.\n## Kya yeh sahi lagta hai?\nVerdict pehli line mein: ✅ Sahi lagta hai / ⚠️ Shak hai / ❌ Ghalat lagta hai. Phir wajah: facts, standard tareeqa, aam rates.\n## Red flags\nScam, zaroorat se zyada kaam, dawai ya fees ke nishan.\n## Yeh 3 sawal poochein\nJin se foran pata chale ke expert kitna jaanta hai aur imaandar hai.\n## Pakistan mein aam standard\nAam kharcha, waqt aur tareeqa.\n## Second opinion kab zaroori\nMedical, legal aur deeni mamlay mein aakhri faisla qualified expert ke saath.`+jsonTail();
+}
+
+/* ---------- Bolo: one mic for everything ---------- */
+const BOLO_MODE={question:"question",note:"auto",expert:"expert",debate:"replay",visit:"visit"};
+function Bolo(){
+  const log=el("div",{class:"stack"});
+  const handle=async t=>{
+    if(needAI()) return;
+    const you=el("div",{class:"bub user",text:t}); const res=el("div",{class:"stack"}); log.prepend(el("section",{class:"card"},you,res));
+    res.append(el("p",{class:"thinking",text:"Samajh raha hoon"}));
+    let r;
+    try{ r=await S.sample.json(`User ne apni learning app mein bola: """${t}"""\nIsay classify karo. Reply sirf JSON:\n{"type":"task"|"price"|"question"|"note"|"expert"|"debate"|"visit","task":"agar kaam hai to chhota saaf kaam","price":{"item":"cheez ka naam chhote huroof mein","price":number,"unit":"kg|litre|dozen|piece|tola|maund|other","place":"dukan/bazaar agar bataya"}}\nQawaid: "yaad dilana / lana hai / karna hai / mangwaya" = task. Kisi cheez ka rate batana ("aloo 120 rupay kilo") = price. Kuch poochna ya samajhna = question. Doctor/mechanic/aalim/wakeel/dukandar ki baat parakhna = expert. Kisi se behas ya baat-cheet ka zikr = debate. Kisi dukan/business ko dekhne ka zikr = visit. Baaki jo dekha, suna, socha = note.`,{cache:false}); }
+    catch(e){ r={type:"note"}; }
+    res.replaceChildren();
+    if(r.type==="task"&&r.task){ await store.put("tasks",uid(),{text:String(r.task),done:false,ts:Date.now()}); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ Kaam list mein daal diya: "+r.task}),el("button",{class:"btn sm ghost",type:"button",onclick:()=>{ S.likhoMode="auto"; S.prefill=t; go("likho"); }},"Nahi, isay note samjho")); return; }
+    if(r.type==="price"&&r.price&&r.price.item&&Number(r.price.price)>0){ const p=r.price; await store.put("prices",uid(),{item:String(p.item).toLowerCase(),price:Number(p.price),unit:p.unit||"kg",place:p.place||"",city:S.settings.city,ts:Date.now()}); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ Rate save: "+p.item+" Rs "+p.price+"/"+(p.unit||"kg")}),el("button",{class:"btn sm",type:"button",onclick:()=>go("bazaar")},"Bazaar dekho")); return; }
+    const mode=BOLO_MODE[r.type]||"auto"; const blk=aiBlock(); res.append(el("div",{class:"stamp",text:LMODES[mode]?LMODES[mode][0]:"Note"}),blk.wrap);
+    const out=await runAI({prompt:likhoPrompt(mode,t),kind:mode==="auto"?"note":mode,text:t,blk});
+    if(out) res.append(el("div",{class:"row"},speakBtn(()=>out.body)));
+  };
+  return [hdr("Ek button, sab kaam","Bolo","Mic dabao aur bolo. Sawal ka jawab, kaam list, rate, ya note: Ustad khud faisla karega."),
+    el("section",{class:"card hot"},talkBox({placeholder:"Ya yahan likho: jaise \"kal abbu ki dawai lani hai\" ya \"Brufen khali pait kyun nahi lete?\"",onSend:handle})),log];
+}
+
+/* ---------- 5-minute mode ---------- */
+function Panch(){
+  if(!S.panch){ const due=dueCards(); const pool=(due.length?due:S.cards.slice()).sort(()=>Math.random()-.5).slice(0,5); S.panch={step:pool.length?0:1,ids:pool.map(c=>c.id),ci:0,shown:false,right:0,q:null,picked:null}; }
+  const P=S.panch; const steps=["Yaad cards","Aaj ka gyaan","Challenge"];
+  const top=[hdr("⚡ 5 minute","Aaj ka chhota dars"),el("div",{class:"row"},...steps.map((s,i)=>el("span",{class:"chip","aria-pressed":String(i===P.step),text:(i<P.step?"✓ ":"")+s}))),el("div",{class:"bar"},el("i",{style:"width:"+Math.round(P.step/3*100)+"%"}))];
+  if(P.step===0){
+    const c=S.cards.find(x=>x.id===P.ids[P.ci]); if(!c){ P.step=1; return Panch(); }
+    const area=el("div",{class:"stack"});
+    const next=()=>{ P.ci++; P.shown=false; if(P.ci>=P.ids.length) P.step=1; render(); };
+    if(!P.shown) area.append(el("button",{class:"btn primary",type:"button",onclick:()=>{P.shown=true;render();}},"Socho... phir jawab dikhao"));
+    else area.append(el("div",{class:"a",text:c.a}),el("div",{class:"grades"},...[[0,"Bhool gaya","g0"],[2,"Yaad tha",""],[3,"Aasaan","g3"]].map(([q,l,cl])=>el("button",{class:"btn "+cl,type:"button",onclick:()=>{ if(q>0)P.right++; store.patch("cards",c.id,schedule(c,q)).catch(()=>{}); next(); }},l))));
+    return [...top,el("div",{class:"flash"},el("div",{class:"stamp",text:"Card "+(P.ci+1)+" / "+P.ids.length+" · "+c.cat}),el("div",{class:"q",text:c.q}),area)];
+  }
+  if(P.step===1){
+    const [gc,gs]=gyaanToday(); const box=el("div",{class:"stack"});
+    if(!P.q){
+      if(!S.sample){ P.step=2; return Panch(); }
+      box.append(el("p",{class:"thinking",text:"Aaj ka gyaan aa raha hai"}));
+      S.sample.json(persona()+`\n\nField: ${gc} / ${gs}. Ek zabardast, kam-maloom aur kaam ka fact/idea 90-130 alfaaz mein samjhao (Roman Urdu, misaal ke saath), phir us par ek MCQ. Reply sirf JSON: {"title":"chhota title","fact":"...","q":"sawal","o":["A","B","C","D"],"a":0,"why":"ek line"}`,{cache:false})
+        .then(j=>{ if(!j||!j.fact) throw {code:"bad_json"}; P.q=j; if(S.panch===P) render(); })
+        .catch(e=>{ box.replaceChildren(el("p",{class:"err",text:errMsg(e)}),el("button",{class:"btn",type:"button",onclick:()=>{P.step=2;render();}},"Chhoro, aage chalo")); });
+      return [...top,el("section",{class:"card"},el("div",{class:"stamp",text:gc+" / "+gs}),box)];
+    }
+    const j=P.q;
+    const opts=el("div",{class:"list"},...(j.o||[]).map((o,i)=>{ let cls="item opt"; if(P.picked!==null){ if(i===j.a) cls+=" right"; else if(i===P.picked) cls+=" wrong"; }
+      return el("button",{class:cls,type:"button",disabled:P.picked!==null,onclick:()=>{ P.picked=i; if(i!==j.a) store.put("cards",uid(),{q:j.q,a:j.o[j.a]+". "+(j.why||""),cat:gc,sub:gs,src:"",created:Date.now(),due:tomorrowMorning(),ivl:0,ease:2.5,reps:0,lapses:0}).catch(()=>{}); render(); }},el("b",{text:"ABCD"[i]}),el("div",{class:"grow",text:o})); }));
+    return [...top,el("section",{class:"card"},el("div",{class:"stamp",text:gc+" / "+gs}),el("h3",{text:j.title||gs}),el("p",{text:j.fact}),el("div",{class:"row"},speakBtn(()=>j.fact)),el("h3",{text:j.q}),opts,
+      P.picked===null?null:el("div",{class:"stack"},el("p",{class:"small",text:(P.picked===j.a?"Sahi! ":"Ghalat (card ban gaya). ")+(j.why||"")}),el("button",{class:"btn primary",type:"button",onclick:()=>{P.step=2;render();}},"Aakhri qadam")))];
+  }
+  if(P.step===2){
+    const ch=CHALLENGES[dayOfYear()%CHALLENGES.length];
+    return [...top,el("section",{class:"card hot"},el("div",{class:"stamp amber",text:"Aaj ka challenge (din mein karna)"}),el("h3",{text:ch}),
+      el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:async()=>{ P.step=3; await store.put("notes",uid(),{kind:"panch",text:"5 minute mode: "+P.right+"/"+P.ids.length+" cards yaad"+(P.q?", gyaan: "+P.q.title:""),ai:P.q?"**"+(P.q.title||"")+"**\n\n"+P.q.fact:"",title:"5 minute dars "+today(),cat:"Roz marra",sub:"",ts:Date.now(),day:today()}); render(); }},"Theek hai, karunga")))];
+  }
+  return [...top.slice(0,1),el("section",{class:"card hot"},el("div",{class:"stamp",text:"Mukammal"}),el("h1",{text:"Shabash! 5 minute poore ✓"}),el("p",{text:P.right+" / "+P.ids.length+" cards yaad the. Streak barh gaya."}),
+    el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:()=>{S.panch=null;go("aaj");}},"Aaj par wapis"),el("button",{class:"btn",type:"button",onclick:()=>{S.panch=null;go("yaad");}},"Aur cards")))];
+}
+
+/* ---------- Akhbar + live rates ---------- */
+const NEWS=[["pak","Pakistan"],["world","Duniya"],["biz","Karobar & maeeshat"],["tech","Tech & AI"],["ummah","Ummat-e-Muslima"],["sports","Khel"],["rates","Aaj ke rates"]];
+function Akhbar(){
+  const sel=S.newsTopic||"pak"; const blk=aiBlock(); let last=null;
+  const chips=el("div",{class:"chips"},...NEWS.map(([k,l])=>el("button",{class:"chip",type:"button","aria-pressed":String(k===sel),onclick:()=>{S.newsTopic=k;render();}},l)));
+  const date=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const label=(NEWS.find(x=>x[0]===sel)||[])[1];
+  const prompt=sel==="rates"
+    ? persona()+`\n\nAaj ${date} hai. Google Search se Pakistan ke TAAZA rates dhoondo aur har rate ke saath tareekh aur source likho. Table banao:\n- Sona: 24k aur 22k (fi tola, 10 gram)\n- Chandi (fi tola)\n- Dollar: interbank aur open market; Saudi Riyal, Dirham, Pound\n- Petrol, high-speed diesel, LPG\n- ${S.settings.city} ya Pakistan mein: aata (20kg), cheeni, ghee, doodh, anday, chicken\n- PSX KSE-100 index\nPhir "## Iska matlab" mein 4-5 points: kya barha, kya ghata, kyun, aur aam aadmi par asar. Jo rate na mile woh saaf likho "nahi mila", andaza mat lagao.`+jsonTail("3-5")
+    : persona()+`\n\nAaj ${date} hai. Google Search se "${label}" ki aaj aur kal ki 6 sab se aham khabrein dhoondo (purani khabar mat do).\nHar khabar:\n### Headline (Roman Urdu)\n- **Kya hua:** 2 lines\n- **Kyun aham:** \n- **Peeche ki kahani:** history ya context jo log nahi jaante\n- **Aap par asar:** Pakistan ke aam insaan ya business par\nAakhir mein:\n## Mehfil ki baat\nAaj ki ek baat jo dosto mein bolein to sab sunein.\n## Ek sawal sochne ke liye`+jsonTail("4-6");
+  const b=el("button",{class:"btn primary",type:"button"},sel==="rates"?"Aaj ke rates lao":"Aaj ki khabrein lao");
+  b.onclick=async()=>{ if(needAI()) return; b.disabled=true; last=await runAI({prompt,kind:"news",text:(sel==="rates"?"Rates ":"Khabrein: "+label+" ")+today(),blk,search:true,extra:{title:(sel==="rates"?"Rates ":"Akhbar · "+label+" · ")+today()}}); b.disabled=false; };
+  return [hdr("Live internet ke saath","📰 Akhbar","Google Search se taaza khabrein aur rates, source ke saath."),
+    el("section",{class:"card"},chips,el("div",{class:"row"},b,speakBtn(()=>last&&last.body)),blk.wrap)];
+}
+
+/* ---------- Share target ---------- */
+function ytId(s){ const m=String(s||"").match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([\w-]{11})/); return m?m[1]:null; }
+function findUrl(s){ const m=String(s||"").match(/https?:\/\/\S+/); return m?m[0]:null; }
+function ShareIn(arg){
+  const d=arg||{};
+  if(d.help||(!d.text&&!d.url&&!d.title&&!d.file)){
+    return [hdr("Share se bhejo","📤 Ustad ko bhejo"),el("section",{class:"card"},el("ol",{class:"small"},
+      el("li",{text:"Pehle app ko home screen par install karo (Chrome ⋮ > Add to Home screen / Install app)."}),
+      el("li",{text:"YouTube, Chrome, WhatsApp ya Gallery mein kisi bhi cheez par Share dabao."}),
+      el("li",{text:"List mein \"Ustad\" chuno."}),
+      el("li",{text:"YouTube video ho to Ustad poori video samjha dega. Link ya forward ho to batayega sach hai ya jhoot. Tasveer seedha Tasveer tab mein jayegi."})),
+      el("p",{class:"small muted",text:"Ya yahan link/text paste karo:"}),
+      (()=>{ const ta=el("textarea",{placeholder:"YouTube link, article link, ya WhatsApp forward paste karo",style:"min-height:80px"}); return el("div",{class:"stack"},ta,el("button",{class:"btn primary",type:"button",onclick:()=>{ const v=ta.value.trim(); if(!v){toast("Kuch paste karo");return;} go("share",{text:v}); }},"Aage")); })())];
+  }
+  const all=[d.title,d.text,d.url].filter(Boolean).join("\n");
+  const url=d.url||findUrl(d.text)||findUrl(d.title); const yt=ytId(all);
+  const blk=aiBlock(); let last=null;
+  const show=el("section",{class:"card"},el("div",{class:"stamp",text:"Aap ne bheja"}),el("p",{style:"white-space:pre-wrap;word-break:break-word",text:all.slice(0,1500)}));
+  const run=async(kind,btn)=>{
+    if(needAI()) return; btn.disabled=true; let prompt, parts=null, urlContext=false;
+    if(kind==="yt"){
+      parts=[{file_data:{file_uri:"https://www.youtube.com/watch?v="+yt}}];
+      prompt=persona()+`\n\nUser ne yeh YouTube video bheji${d.title?" ("+d.title+")":""}. Poori video dekh kar:\n## Yeh video kis baare mein hai\n## Khulasa\n## Aham points\nHar point ke saath timestamp (mm:ss).\n## Kya sahi, kya ghalat\nVideo ke daawon ko parkho: kaunsi baat pakki hai, kaunsi mubalgha ya ghalat.\n## Gehri baat\nJo video ne nahi bataya magar jaanna zaroori hai.\n## Mehfil mein kya bolein`+jsonTail("6-10");
+    } else if(kind==="check"){
+      urlContext=!!url;
+      prompt=persona()+`\n\nFACT CHECK. User ko yeh mila (WhatsApp forward, post ya link):\n"""${all.slice(0,6000)}"""\n${url?"Link khol kar parho. ":""}Google Search se check karo.\nPehli line: ✅ Sach / ⚠️ Aadha sach / ❌ Jhoot / ❓ Pata nahi chal saka.\n## Daawa kya hai\n## Asal haqeeqat\nSources ke saath.\n## Yeh kyun phailaya jata hai\n## Aisi cheez khud kaise check karein\n3 tareeqay.`+jsonTail("3-5");
+    } else {
+      urlContext=!!url;
+      prompt=persona()+`\n\nUser ne yeh share kiya:\n"""${all.slice(0,6000)}"""\n${url?"Link khol kar poora parho. ":""}Isay samjhao:\n## Khulasa\n## Aham baatein\n## Gehri discussion\nBackground, kyun aur kaise.\n## Notice karo\n## Sawal`+jsonTail();
+    }
+    last=await runAI({prompt,kind:kind==="yt"?"video":kind==="check"?"factcheck":"note",text:all.slice(0,2000),blk,search:true,parts,urlContext});
+    if(!last&&kind==="yt") blk.out.append(el("p",{class:"small muted",text:"Agar video private, bohot lambi ya live ho to Gemini nahi dekh pata. Doosri video try karo."}));
+    btn.disabled=false;
+  };
+  const btns=[];
+  if(yt){ const b=el("button",{class:"btn primary",type:"button"},"🎬 Video samjhao"); b.onclick=()=>run("yt",b); btns.push(b); }
+  const b2=el("button",{class:yt?"btn":"btn primary",type:"button"},"Samjhao"); b2.onclick=()=>run("explain",b2); if(!yt) btns.push(b2);
+  const b3=el("button",{class:"btn",type:"button"},"Sach ya jhoot?"); b3.onclick=()=>run("check",b3); btns.push(b3);
+  return [hdr("Share se aaya","📤 Ustad ko bheja"),show,el("section",{class:"card"},el("div",{class:"row"},...btns,speakBtn(()=>last&&last.body)),blk.wrap)];
+}
+async function readShare(){
+  try{
+    const c=await caches.open("ustad-share"); const m=await c.match("share-meta"); if(!m) return null;
+    const d=await m.json(); const f=await c.match("share-file");
+    if(f){ const b=await f.blob(); d.file=new File([b],d.fname||"shared",{type:b.type||d.ftype||""}); }
+    await c.delete("share-meta"); await c.delete("share-file");
+    return d;
+  }catch(e){ return null; }
+}
+async function routeStart(){
+  const p=new URLSearchParams(location.search);
+  if(p.has("share")){
+    history.replaceState(null,"",location.pathname);
+    const d=await readShare(); if(!d) return;
+    if(d.file&&/^image\//.test(d.file.type)){ S.lensFile=d.file; go("lens"); toast("Tasveer aa gayi. Ab 'Poora analysis' dabao."); return; }
+    if(d.file&&/pdf/.test(d.file.type)){ S.book={file:d.file,name:d.file.name}; go("kitaab"); return; }
+    go("share",d); return;
+  }
+  const g=p.get("go"); if(g){ history.replaceState(null,"",location.pathname); if(EXTRA[g]||TABS.some(t=>t[0]===g)) go(g); }
+}
+
+/* ---------- Courses ---------- */
+const COURSE_IDEAS=["Islamic history: Khilafat se Mughal tak","Subcontinent history 1700-1947","Car ki samajh: mechanic ko judge karna","Insani jism aur sehat ki bunyaad","Psychology: logon ko samajhna","Personal finance aur investment (Pakistan)","Stock market aur PSX basics","Behas, logic aur fallacies","Quran ki aham surahon ka matlab","Business shuru karna: zero se"];
+function saveCourses(list){ return store.settings({courses:list}); }
+function Courses(){
+  const list=S.settings.courses||[];
+  const t=el("input",{type:"text",placeholder:"Kya seekhna hai? Jaise: Electrician ka kaam samajhna"});
+  const days=el("select",{"aria-label":"Kitne din"},...[["7","7 din"],["14","14 din"],["21","21 din"],["30","30 din"]].map(([v,l])=>el("option",{value:v,selected:v==="14"},l)));
+  const msg=el("div");
+  const make=async(topic,b)=>{
+    if(needAI()) return; if(!topic){toast("Topic likho");return;}
+    b.disabled=true; msg.replaceChildren(el("p",{class:"thinking",text:"Course ban raha hai"}));
+    try{
+      const j=await S.sample.json(persona()+`\n\nUser ke liye ${days.value} din ka COURSE banao: "${topic}". Har din 10-15 minute ka ek dars. Shuru bunyaad se, aakhir tak expert-level (itna ke expert se behas kar sakein). Din ek doosre par build karein, aakhri din revision + test.\nReply sirf JSON: {"title":"chhota title","cat":"category (${Object.keys(CATS).join(", ")})","sub":"subcategory","days":[{"t":"din ka topic","goal":"is din ke baad user kya kar/samajh sakega"}]}`,{cache:false});
+      if(!j||!Array.isArray(j.days)||!j.days.length) throw {code:"bad_json"};
+      const c={id:uid(),title:String(j.title||topic),cat:normCat(j.cat),sub:String(j.sub||""),days:j.days.filter(x=>x&&x.t).map(x=>({t:String(x.t),goal:String(x.goal||"")})),done:[],start:Date.now()};
+      await saveCourses([c,...list]); go("course",c.id);
+    }catch(e){ msg.replaceChildren(el("p",{class:"err",text:errMsg(e)})); b.disabled=false; }
+  };
+  const mk=el("button",{class:"btn primary",type:"button"},"Course banao"); mk.onclick=()=>make(t.value.trim(),mk);
+  return [hdr("Tarteeb se seekho","📚 Courses","Roz ek dars, phir quiz. Bikhra ilm ek raaste par."),
+    list.length?el("section",{class:"card"},el("div",{class:"stamp",text:"Aap ke courses"}),el("div",{class:"list"},...list.map(c=>{ const n=(c.done||[]).length;
+      return el("button",{class:"item",type:"button",onclick:()=>go("course",c.id)},el("div",{class:"grow"},el("div",{class:"t",text:c.title}),el("div",{class:"bar"},el("i",{style:"width:"+Math.round(n/c.days.length*100)+"%"})),el("div",{class:"s",text:n+" / "+c.days.length+" din"+(n>=c.days.length?" · Mukammal ✓":"")})),el("span",{class:"small muted",text:"→"})); }))):null,
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Naya course"}),el("div",{class:"row"},el("div",{class:"grow"},t),micBtn(t)),el("div",{class:"row"},days,mk),msg,
+      el("p",{class:"small muted",text:"Ya inmein se chuno:"}),el("div",{class:"chips"},...COURSE_IDEAS.map(x=>el("button",{class:"chip",type:"button",onclick:e=>make(x,e.currentTarget)},x))))];
+}
+function CourseView(id){
+  const list=S.settings.courses||[]; const c=list.find(x=>x.id===id);
+  if(!c) return [hdr("Course","Nahi mila")];
+  const done=new Set(c.done||[]); const nextI=c.days.findIndex((_,i)=>!done.has(i));
+  const blk=aiBlock(); const sel=S.courseDay!=null&&S.courseDay<c.days.length?S.courseDay:(nextI<0?0:nextI);
+  const d=c.days[sel];
+  const learn=el("button",{class:"btn primary",type:"button"},"Din "+(sel+1)+" ka dars shuru");
+  learn.onclick=async()=>{ if(needAI()) return; learn.disabled=true;
+    const prev=c.days.slice(0,sel).map((x,i)=>(i+1)+". "+x.t).join("; ");
+    const r=await runAI({prompt:lessonPrompt(c.cat,c.sub,`Course "${c.title}" ka Din ${sel+1}/${c.days.length}: ${d.t}. Is din ka goal: ${d.goal}. Pichle din (in par build karo, repeat mat karo): ${prev||"koi nahi"}. 10-15 minute ka dars.`),kind:"lesson",text:c.title+" · Din "+(sel+1)+": "+d.t,blk,extra:{title:c.title+" · Din "+(sel+1)+": "+d.t}});
+    if(r){ const L=(S.settings.courses||[]).map(x=>x.id===c.id?{...x,done:[...new Set([...(x.done||[]),sel])]}:x); S.courseDay=null; await saveCourses(L);
+      blk.out.append(el("div",{class:"row"},el("button",{class:"btn",type:"button",onclick:()=>go("quiz",{cat:c.cat,sub:d.t})},"Is din ka quiz"),speakBtn(()=>r.body))); }
+    learn.disabled=false; };
+  const del=el("button",{class:"btn sm danger",type:"button",onclick:async()=>{ if(!confirm("Yeh course mitayein? (Notes aur cards rahenge)")) return; await saveCourses(list.filter(x=>x.id!==c.id)); go("courses"); }},"Course mitao");
+  return [el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>go("courses")},"← Courses")),el("div",{class:"stamp",text:c.cat+" · "+done.size+"/"+c.days.length+" din"}),el("h1",{text:c.title})),
+    el("div",{class:"bar"},el("i",{style:"width:"+Math.round(done.size/c.days.length*100)+"%"})),
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Din "+(sel+1)}),el("h3",{text:d.t}),el("p",{class:"small muted",text:"Goal: "+d.goal}),el("div",{class:"row"},learn),blk.wrap),
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Saare din"}),el("div",{class:"list"},...c.days.map((x,i)=>el("button",{class:"item"+(done.has(i)?" done":""),type:"button",onclick:()=>{S.courseDay=i;render();window.scrollTo(0,0);}},el("span",{class:"tick",text:done.has(i)?"✓":String(i+1)}),el("div",{class:"grow t",text:x.t}))))),
+    el("div",{class:"row"},del)];
+}
+
+/* ---------- Kitaab / PDF ---------- */
+function Kitaab(){
+  const f=el("input",{type:"file",accept:"application/pdf,.pdf",class:"vh",id:"pdfIn"});
+  const info=el("p",{class:"small muted",text:S.book?"Kitaab: "+S.book.name+" · "+Math.round(S.book.file.size/1048576*10)/10+" MB":"Abhi koi kitaab nahi chuni."});
+  f.onchange=()=>{ const x=f.files[0]; if(!x) return; if(x.size>14*1048576){ toast("Yeh PDF 14 MB se bari hai. Chhoti PDF ya chapter alag kar ke daalo."); return; } S.book={file:x,name:x.name}; render(); };
+  const blk=aiBlock(); let last=null;
+  const q=el("input",{type:"text",placeholder:"Kaunsa chapter/hissa samjhaun? Ya koi sawal poocho"});
+  const go2=async(kind,btn)=>{
+    if(needAI()) return; if(!S.book){toast("Pehle PDF chuno");return;}
+    const part={inline_data:{mime_type:"application/pdf",data:await blobB64(S.book.file)}};
+    const p=kind==="sum"
+      ? persona()+`\n\nYeh PDF/kitaab "${S.book.name}" hai. Poori parh kar:\n## Yeh kya hai\nLikhne wala, mauzu, kis ke liye.\n## 10 line mein khulasa\n## Chapters / hissay\nNumbered list, har ek ka 1-2 line khulasa.\n## Sab se aham 7 ideas\n## Kya maanna, kya parakhna\nKitaab ki kamzor ya mutnaza baatein.\n## Shuru kahan se karein`
+      : persona()+`\n\nYeh PDF/kitaab "${S.book.name}" hai. User ka sawal/hissa: "${q.value.trim()}".\nUsi hisse ko kitaab ki bunyaad par gehrai se samjhao (page/chapter ka hawala do), misaalein do, aur aakhir mein 3 sawal jo user khud se poochein.`;
+    if(kind==="ask"&&!q.value.trim()){toast("Chapter ya sawal likho");return;}
+    btn.disabled=true;
+    last=await runAI({prompt:p+jsonTail("5-10"),kind:"kitaab",text:"Kitaab: "+S.book.name+(kind==="ask"?" · "+q.value.trim():" · khulasa"),blk,parts:[part],extra:{title:(kind==="ask"?q.value.trim().slice(0,40)+" · ":"Khulasa · ")+S.book.name.replace(/\.pdf$/i,"").slice(0,40)}});
+    btn.disabled=false;
+  };
+  const b1=el("button",{class:"btn primary",type:"button"},"Khulasa + chapters"); b1.onclick=()=>go2("sum",b1);
+  const b2=el("button",{class:"btn",type:"button"},"Samjhao"); b2.onclick=()=>go2("ask",b2);
+  return [hdr("Kitaab parho","📄 Kitaab / PDF","PDF daalo (14 MB tak). Ustad poori kitaab parh kar khulasa, chapter-wise dars aur yaad-cards banayega."),
+    el("section",{class:"card"},el("div",{class:"row"},el("label",{class:"btn",for:"pdfIn"},"📄 PDF chuno",f)),info,el("div",{class:"row"},b1),
+      el("div",{class:"row"},el("div",{class:"grow"},q),micBtn(q)),el("div",{class:"row"},b2,speakBtn(()=>last&&last.body)),blk.wrap)];
+}
+
+/* ---------- Ilm ka naqsha ---------- */
+function Naqsha(){
+  const rows=Object.keys(CATS).map(c=>{ const notes=S.notes.filter(n=>n.cat===c).length; const cards=S.cards.filter(x=>x.cat===c); const pakke=cards.filter(x=>(x.ivl||0)>=21).length; const weak=cards.filter(x=>(x.lapses||0)>=2).length;
+    const score=Math.min(100,notes*4+cards.length*1.5+pakke*4-weak*2); return {c,notes,cards:cards.length,pakke,weak,score:Math.max(0,Math.round(score))}; }).sort((a,b)=>b.score-a.score);
+  const blk=aiBlock();
+  const b=el("button",{class:"btn primary",type:"button"},"Mujhe agla kya seekhna chahiye?");
+  b.onclick=async()=>{ if(needAI()) return; b.disabled=true;
+    const data=rows.map(r=>r.c+": score "+r.score+", notes "+r.notes+", cards "+r.cards+", pakke "+r.pakke+", kamzor "+r.weak).join("\n");
+    const weakQ=S.cards.filter(x=>(x.lapses||0)>=2).slice(0,15).map(x=>"- "+x.q).join("\n");
+    await runAI({prompt:persona()+`\n\nUser ka ILM KA NAQSHA (har field mein kitna kaam kiya):\n${data}\nBaar baar bhoolne wale sawal:\n${weakQ||"-"}\n\n## Aap ki taqat\n## Sab se bara khala\nUser ke goal (har room mein sab se knowledgeable, experts ko parakhna) ke hisaab se kaunsi field sab se zaroori aur kamzor hai.\n## Agle 7 din ka plan\nHar din: field, topic aur 10 minute ka kaam.\n## Ek course jo shuru karein\nNaam aur kyun.`+jsonTail("3-5"),kind:"plan",text:"Ilm ka naqsha "+today(),blk,extra:{title:"Ilm ka naqsha · plan "+today()}});
+    b.disabled=false; };
+  const max=Math.max(1,...rows.map(r=>r.score));
+  return [hdr("Aap kahan khare hain","🧠 Ilm ka naqsha","Har field mein notes, cards aur pakki yaadon se score. Lamba bar = zyada mazboot."),
+    el("section",{class:"card"},el("div",{class:"list"},...rows.map(r=>el("button",{class:"item",type:"button",onclick:()=>go("topic",{cat:r.c})},el("div",{class:"grow"},
+      el("div",{class:"row",style:"justify-content:space-between"},el("span",{class:"t",text:r.c}),el("span",{class:"num small",text:String(r.score)})),
+      el("div",{class:"bar"},el("i",{style:"width:"+Math.round(r.score/max*100)+"%"+(r.score===0?";background:var(--line)":"")})),
+      el("div",{class:"s",text:r.notes+" notes · "+r.cards+" cards · "+r.pakke+" pakke"+(r.weak?" · "+r.weak+" kamzor":"")})))))),
+    el("section",{class:"card hot"},el("div",{class:"row"},b),blk.wrap)];
 }
 
 </script>
@@ -620,7 +917,7 @@ function errMsg(e){
   const c=e&&e.code;
   return ({no_ai:"AI abhi band hai. Settings (upar ⚙) mein free Gemini key daalo.",bad_key:"Gemini key ghalat ya band hai. Settings mein nayi key daalo.",bad_model:"AI model nahi mila. Settings mein key dobara Save karo.",offline:"Internet nahi hai. Net on kar ke dobara try karo.",server:"Google ka server abhi busy hai. Thori der baad try karo.",empty:"AI ne khaali jawab diya. Dobara try karo.",bad_json:"AI ka jawab samajh nahi aaya. Dobara try karo.",not_granted:"AI ki ijazat nahi di gayi. Page reload kar ke Allow dabayein.",rate_limited:"Free limit aa gayi (har minute/din ki). Thori der baad dobara try karein.",session_expired:"Claude par dobara sign in karein.",refused:"AI ne yeh jawab dene se inkar kiya. Sawal badal kar try karein.",prompt_too_large:"Text bohot lamba hai. Chhota kar ke bhejein.",image_rejected:"Yeh tasveer nahi chali. Doosri try karein (JPG/PNG).",images_unavailable:"Is jagah se tasveer AI ko nahi ja sakti.",sampling_disabled:"Is account par AI band hai.",cancelled:"Rok diya."})[c]||"Kuch ghalat ho gaya ("+(c||"error")+"). Dobara try karein.";
 }
-async function ask(input,{out,images,tier,stopBtn,tools}={}){
+async function ask(input,{out,images,tier,stopBtn,tools,search,parts,urlContext}={}){
   if(!S.sample) throw {code:"no_ai"};
   const ctl=new AbortController();
   if(stopBtn){stopBtn.hidden=false;stopBtn.onclick=()=>ctl.abort();}
@@ -629,6 +926,7 @@ async function ask(input,{out,images,tier,stopBtn,tools}={}){
   if(tier) opts.modelTier=tier;
   if(images) opts.images=images;
   if(tools) opts.tools=tools;
+  opts.webAuto=true; if(search) opts.search=true; if(parts) opts.parts=parts; if(urlContext) opts.urlContext=true;
   try{
     const r=await S.sample(input,opts);
     const parts=r.text.split(MARK); const body=parts[0].trim(); let meta=null;
@@ -651,9 +949,9 @@ async function saveNote({kind,text,body,meta,extra}){
 }
 /* runs an AI job inside a card: returns output node; handles errors + raw save */
 function aiBlock(){ const out=el("div",{class:"ai"}); const stop=el("button",{class:"btn sm ghost",type:"button",hidden:true},"Roko"); const wrap=el("div",{class:"stack"},out,el("div",{class:"row end"},stop)); return {wrap,out,stop}; }
-async function runAI({prompt,kind,text,images,tier,blk,extra,noSave}){
+async function runAI({prompt,kind,text,images,tier,blk,extra,noSave,search,parts,urlContext}){
   try{
-    const r=await ask(prompt,{out:blk.out,images,tier,stopBtn:blk.stop});
+    const r=await ask(prompt,{out:blk.out,images,tier,stopBtn:blk.stop,search,parts,urlContext});
     if(noSave) return r;
     const id=await saveNote({kind,text,body:r.body,meta:r.meta,extra});
     blk.out.append(el("div",{class:"row"},el("button",{class:"btn sm",type:"button",onclick:()=>go("note",id)},"Note kholo aur aur poocho")));
@@ -768,7 +1066,7 @@ function render(){
   S.live=[];
   const v=$("#view");
   const screens={aaj:Aaj,likho:Likho,lens:Lens,yaad:Yaad,seekho:Seekho,behas:Behas,note:NoteView,bazaar:Bazaar,topic:Topic,settings:Settings,review:Review,ustad:UstadChat,quiz:Quiz,awaaz:Awaaz};
-  const fn=screens[S.screen||S.tab];
+  const fn=screens[S.screen||S.tab]||EXTRA[S.screen||S.tab]||Aaj;
   v.replaceChildren(...[].concat(fn(S.arg)).filter(Boolean));
   renderTabs();
   $("#fileno").textContent="File "+today().replace(/-/g,".")+" · "+S.settings.city;
@@ -790,8 +1088,8 @@ function noteRow(n){
       el("div",{class:"s",text:fmtDT(n.ts)+" · "+n.cat+(n.sub?" / "+n.sub:"")})),
     el("span",{class:"tag k-"+n.kind,text:KIND[n.kind]||n.kind}));
 }
-const KIND={note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
-const KIND_XP={voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
+const KIND={expert:"expert",kitaab:"kitaab",panch:"5 min",factcheck:"sach/jhoot",plan:"plan",note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
+const KIND_XP={expert:20,kitaab:25,panch:30,factcheck:15,plan:10,voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
 const RANKS=[[0,"Recruit"],[250,"Observer"],[700,"Analyst"],[1600,"Field Agent"],[3500,"Senior Agent"],[7000,"Station Chief"],[15000,"Top 1%"]];
 function xp(){ let x=0; for(const n of S.notes) x+=KIND_XP[n.kind]||10; for(const c of S.cards) x+=(c.reps||0)*3; return x; }
 function rank(){ const x=xp(); let i=0; while(i+1<RANKS.length&&x>=RANKS[i+1][0]) i++; const cur=RANKS[i],nxt=RANKS[i+1]; return {x,name:cur[1],next:nxt&&nxt[1],pct:nxt?(x-cur[0])/(nxt[0]-cur[0]):1,need:nxt?nxt[0]-x:0}; }
@@ -960,7 +1258,7 @@ function Aaj(){
   };
   const weekly=el("section",{class:"card"},el("div",{class:"stamp",text:"Hafta"}),el("p",{class:"muted small",text:"Har Itwaar: poore hafte ka hisaab, patterns aur agle hafte ka plan."}),el("div",{class:"row"},wBtn),wBlk.wrap);
 
-  return [head,banner,stats,missionCard,h<14?morning:night,quick,gyaan,challenge,tasks,h<14?night:morning,bazaar,weekly,recent];
+  return S.settings.simple?[head,banner,homeTop(),stats,missionCard,h<14?morning:night,tasks]:[head,banner,homeTop(),stats,missionCard,h<14?morning:night,quick,gyaan,homeMore(),challenge,tasks,h<14?night:morning,bazaar,weekly,recent];
 }
 
 /* ================= USTAD (memory chat) ================= */
@@ -1021,10 +1319,12 @@ const LMODES={
   question:["Sawal","Kisi bhi cheez ka sawal: dawai, qanoon, car, deen..."],
   replay:["Behas replay","Kis se behas hui, unhon ne kya kaha, aap ne kya kaha..."],
   visit:["Business visit","Kaunsa business, kahan, kitne customer, rates, staff, jagah kaisi thi..."],
-  critique:["Critique","Kisi cheez ko describe karo: kya acha, kya bura laga..."]
+  critique:["Critique","Kisi cheez ko describe karo: kya acha, kya bura laga..."],
+  expert:["Expert check","Doctor, mechanic, wakeel, aalim ya dukandar ne kya kaha? Poori baat likho..."]
 };
 function likhoPrompt(mode,text){
   const P=persona();
+  if(mode==="expert") return expertPrompt(text);
   if(mode==="question") return P+`\n\nUser ka sawal:\n"""${text}"""\n\nGehra, expert-level jawab do: bunyaad, details, misaalein, aam ghalat-fehmiyan, expert ko kaise judge karein, aur 3 pro-level sawal jo user aage kisi expert se pooch sakein.`+jsonTail();
   if(mode==="replay") return P+`\n\nUser ki kisi se behas hui thi:\n"""${text}"""\n\nBatao:\n## Kya hua\nDono taraf ka khulasa.\n## Doosre bande ke sab se mazboot points\n## Aap kya behtar keh sakte the\nTayyar jumlay Roman Urdu mein, jo agli dafa bol sakein.\n## Facts jo kaam aate\n## Ghaltiyan\nDono taraf ki logical fallacies ya kamzor dalail.\n## Agli dafa ke liye 3 lines\nYaad rakhne ke liye.`+jsonTail();
   if(mode==="visit") return P+`\n\nUser ek business dekhne gaye. Unke notes:\n"""${text}"""\n\nIntelligence-style business analysis do:\n## Business model\nPaisa kahan se aata hai.\n## Andazan hisaab\nRevenue, kharche, profit ka rough math (assumptions likh kar).\n## Kya acha hai\n## Kya kharab ya risky hai\n## 10 behtari ke tareeqay\nSpecific aur practical.\n## Agli dafa kya notice karein\nChecklist: location, foot traffic, pricing, staff, branding, safai, inventory, payment methods waghera.\n## Owner se poochne wale sawal`+jsonTail();
@@ -1295,7 +1595,7 @@ function Seekho(){
     el("section",{class:"card"},el("div",{class:"stamp",text:"Kuch bhi seekho"}),el("div",{class:"row",style:"align-items:flex-start"},el("div",{class:"grow"},any),micBtn(any)),el("div",{class:"row"},b),blk.wrap),
     el("section",{class:"card hot"},el("div",{class:"stamp",text:"Dekh aur sun kar seekho"}),el("p",{class:"muted small",text:"Upar topic likho (ya khaali chhoro), phir chuno:"}),
       el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:()=>go("awaaz",{tab:"video",topic:any.value.trim()})},"🎬 Video lesson"),el("button",{class:"btn",type:"button",onclick:()=>go("awaaz",{tab:"do",topic:any.value.trim()})},"🎧 Do log baat karein"),el("button",{class:"btn",type:"button",onclick:()=>go("awaaz",{tab:"baat",topic:any.value.trim()})},"🎙 Awaaz mein sawal-jawab"))),
-    grid
+    seekhoMore(),grid
   ];
 }
 function lessonPrompt(cat,sub,topic,done){
