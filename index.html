@@ -194,6 +194,8 @@ details summary{cursor:pointer;font-weight:600}
 .frame h3{color:var(--accent)}
 .cat.hot{border-color:var(--accent)}
 .f.tg{gap:4px}
+details.gd{border-top:1px solid var(--line);padding:10px 0}
+details.gd summary{cursor:pointer;font-weight:600;list-style-position:outside}
 .f.tg input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
 body.bigfont .flash .q{font-size:23px}
 </style>
@@ -1038,12 +1040,14 @@ async function backupNow(){
 }
 function homeAlerts(){
   const out=[]; const lb=S.settings.lastBackup||0;
+  if(!S.settings.guideSeen) out.push(el("div",{class:"banner"},"Naye ho? Har feature ki training yahan hai. ",el("button",{class:"btn sm",type:"button",onclick:()=>go("guide")},"📖 Training kholo")));
   if(S.notes.length+S.cards.length>=10&&Date.now()-lb>7*DAYMS) out.push(el("div",{class:"banner"},(lb?"Pichla backup "+Math.floor((Date.now()-lb)/DAYMS)+" din pehle. ":"Abhi tak koi backup nahi. ")+"Phone gum ho to sab chala jayega. ",el("button",{class:"btn sm",type:"button",onclick:backupNow},"Backup lo (1 tap)")));
   for(const [p,d] of bdaysSoon(3)) out.push(el("div",{class:"banner"},"🎂 "+p.name+" ka birthday "+(d===0?"AAJ":d===1?"kal":d+" din baad")+" hai. ",el("button",{class:"btn sm",type:"button",onclick:()=>go("person",p.id)},"Dekho")));
   return out;
 }
 function lifeTiles(){
   return el("div",{class:"catgrid"},
+    tile("📖","Training","Har feature kaise chalayein",()=>go("guide"),true),
     tile("🧠","Meri baatein","Ustad aap ko yaad rakhe",()=>go("profile")),
     tile("🔎","Notes se poochho","\"Maine kya seekha tha...?\"",()=>go("poocho")),
     tile("👥","Log","Har insaan ka card, birthday",()=>go("log")),
@@ -1053,6 +1057,74 @@ function lifeTiles(){
     tile("🚶","Chalte phirte","Hands-free dars, gaari mein",()=>go("walk")),
     tile("🧑‍🏫","Ustad ko sikhao","Samjhao, number pao",()=>go("sikhao")),
     tile("📊","Test & report","Hafte ka test, mahine ka report",()=>go("report")));
+}
+
+/* ===== Guide: in-app training for every feature ===== */
+EXTRA.guide=Guide;
+const GUIDE=[
+ {h:"Shuru karne se pehle (ek dafa)",items:[
+  ["⚙️","AI key","Upar ⚙ Settings mein free Gemini key daalo. Bina key ke AI wale kaam nahi chalenge.",["Settings kholo","aistudio.google.com/apikey se key copy karo","Paste karo aur Save dabao"],"settings"],
+  ["📲","App install","Chrome ⋮ menu > \"Add to Home screen\" / \"Install app\". Is se app full screen khulti hai aur Share mein \"Ustad\" aata hai.",["Chrome mein app kholo","⋮ dabao","Install app / Add to Home screen"],null],
+  ["🧠","Meri baatein","Apne baare mein 5-10 baatein likh do: kaam, ghar wale, sehat, gaari, goals. Phir har jawab aap ke hisaab se aayega.",["Meri baatein kholo","Chips dabao (Mera kaam, Ghar mein kaun...)","Har baat ke baad 'Yaad rakho'"],"profile"],
+  ["🎤","Mic ki zabaan","Settings mein mic ki zabaan chuno. Roman Urdu bolte ho to \"Roman / English (Hinglish)\" behtar likhta hai.",["Settings","Mic ki zabaan","Dono try karo, jo sahi likhe woh rakho"],"settings"],
+  ["💾","Purana data","Purani backup file ho to Settings > \"Backup wapas lao\" se daal do.",[],"settings"]]},
+ {h:"Roz ka routine (15-20 minute)",items:[
+  ["🌅","Subah (2 min)","Aaj page kholo: subah ka sawal, aaj ka mission aur challenge dekho.",["Aaj kholo","Subah wala sawal parho","Challenge yaad rakho, din mein karna hai"],"aaj"],
+  ["⚡","5 minute mode","Sab se aasaan roz ka kaam: 5 purane cards, ek naya fact aur ek challenge. Streak isi se barhta hai.",["Aaj > 5 minute mode","Card ka jawab socho, phir dikhao","Imaandari se 'Bhool gaya / Yaad tha / Aasaan'"],"panch"],
+  ["🚶","Raaste mein","Gaari, bike ya walk par Chalte phirte chala do. Screen on rakho, earphone lagao.",["Chalte phirte kholo","Topic likho ya khaali chhoro","Dars shuru, phir bol kar jawab do"],"walk"],
+  ["🌙","Raat (5 min)","Din mein jo dekha, suna ya seekha, Bolo par bol do. Diary mein mood aur neend daalo.",["Bolo dabao, din ki 2-3 baatein bolo","Diary: mood + neend + 2 line"],"diary"]]},
+ {h:"Sab se aham: Bolo button",items:[
+  ["🎤","Ek button sab kaam","Aaj page par bara mic. Jo bolo, Ustad khud samajh kar sahi jagah rakhta hai.",["\"Kal abbu ki dawai lani hai\" → kaam list","\"Aloo 120 rupay kilo\" → Bazaar rate","\"Yaad rakhna, mujhe sugar hai\" → Meri baatein","\"Ahmed ka beta medical mein hai\" → Ahmed ka card","\"Maine car ke baare mein kya seekha tha?\" → aap ke notes","\"Kal doctor ke paas jana hai\" → tayyari briefing","Koi bhi sawal → poora jawab + 🔊 Suno"],"bolo"],
+  ["📌","Shortcut","App icon ko lamba dabao: Bolo, 5 minute, Tasveer, Yaad, Akhbar seedha khulte hain.",[],null]]},
+ {h:"Seekhna",items:[
+  ["🪜","Seerhi (Basic se Pro)","Koi bhi field tarteeb se: 4 level, har level mein 5-6 topics, aakhir mein test. Gehra ilm isi se aata hai.",["Seekho > koi field > neeche 'Basic se Pro tak'","Ya Seerhi tile se apna topic likho","Roz 1-2 topic, level poora ho to test do"],"seerhi"],
+  ["📚","Courses","7-30 din ka plan: roz ek dars + quiz. Seerhi se halka, roz ki aadat ke liye.",["Courses kholo","Topic likho ya chip chuno","Aaj page par 'Din X' button se roz jaari rakho"],"courses"],
+  ["📖","Seekho tab","Har field (Deen, Sehat, Psychology, Business, Aurat ki sehat, Janwar...) ke andar subtopic chuno aur lesson lo.",["Neeche Seekho tab","Field chuno, phir subtopic","'Aaj ka lesson' ya quiz"],"seekho"],
+  ["🧑‍🏫","Ustad ko sikhao","Jo seekha usay apne lafzon mein samjhao. Ustad number dega aur ghaltiyan batayega. Yaad rakhne ka sab se pakka tareeqa.",["Topic chuno","Bara mic dabao aur bachay ko samjhane ki tarah bolo","Number aur 'Behtar explanation' parho"],"sikhao"],
+  ["📄","Kitaab / PDF","Kitaab ki PDF daalo: khulasa, chapters, phir jo hissa chaho samjho.",["PDF chuno (14 MB tak)","Khulasa + chapters","Neeche chapter ka naam likh kar 'Samjhao'"],"kitaab"],
+  ["🧠","Ilm ka naqsha","Dekho kis field mein mazboot ho, kis mein kamzor. Button se agle 7 din ka plan lo.",[],"naqsha"]]},
+ {h:"Yaad rakhna (Yaad tab)",items:[
+  ["🃏","Yaad-cards","Har dars, note aur video se cards khud bante hain. Ustad unhein sahi waqt par dobara dikhata hai (spaced repetition).",["Neeche Yaad tab (laal number = aaj ke cards)","Pehle khud socho, phir jawab dikhao","Imaandari se grade do: bhoola to 'Bhool gaya'"],"yaad"],
+  ["📊","Test & report","Har Itwaar hafte ka test do. Mahine ke aakhir mein report: har field ka grade.",["Test & report kholo","Hafte ka test do","Mahine ke aakhir 'Is mahine ki report'"],"report"]]},
+ {h:"Duniya aur internet",items:[
+  ["📰","Akhbar & rates","Aaj ki khabrein topic ke hisaab se, aur sona, dollar, petrol, aata ke taaza rates (source ke saath).",["Akhbar kholo","Topic chip chuno","'Aaj ki khabrein lao' ya 'Aaj ke rates'"],"akhbar"],
+  ["📤","Share to Ustad","YouTube video, article ya WhatsApp forward Ustad ko bhejo: video ka khulasa, aur 'Sach ya jhoot?'.",["YouTube/WhatsApp mein Share dabao","List mein 'Ustad' chuno (app install honi chahiye)","'Video samjhao' ya 'Sach ya jhoot?'"],"share"],
+  ["🌐","Live internet","Settings mein on ho to jawab Google Search se taaza aate hain, neeche Sources ke saath.",[],"settings"]]},
+ {h:"Asli zindagi mein kaam",items:[
+  ["📷","Tasveer (Lens)","Kisi bhi cheez ki photo: gaari ka part, paudha, building, dukan. Ustad pehchan, qeemat aur chhupi baatein batata hai.",["Neeche Tasveer tab","Camera ya gallery","'Poora analysis'"],"lens"],
+  ["💊","Dawai scanner","Dawai ke packet ki photo: salt, kis liye, side effects, kin ke saath nahi, aur sasta alternative.",["Photo lo ya naam likho","'Kis ke liye' chuno (bachay, bazurg, pregnant)","Check karo"],"dawai"],
+  ["🩺","Expert check","Doctor, mechanic, wakeel ya dukandar ne kuch kaha? Likho: Ustad batayega sahi hai ya nahi, red flags kya hain, aur kya poochna hai.",[],"expert"],
+  ["📋","Kal ki tayyari","Kahin jaane se pehle: kya poochna, kya saath le jana, kya rates hain, kahan dhoka ho sakta hai.",[],"tayyari"],
+  ["🛒","Bazaar","Jo rate dekho, Bolo par bol do. Waqt ke saath aap ke sheher ki qeematon ka record ban jata hai.",[],"bazaar"],
+  ["💬","Behas","Kisi topic par Ustad se behas karo, ya baad mein yaad aaya jawab 'Replay' mein likho.",[],"behas"]]},
+ {h:"Rishtay aur apna aap",items:[
+  ["👥","Log","Har ahem insaan ka card banao. Baat-cheet ke baad 1 line daal do. Milne se pehle 'briefing' dabao.",["Log > naam + rishta","Birthday daalo (3 din pehle yaad-dihani)","Milne se pehle briefing"],"log"],
+  ["📔","Diary","Roz mood, neend aur 2 line. Ek hafte baad 'Mere patterns batao' se pata chalega kya cheez mood kharab karti hai.",[],"diary"],
+  ["🔎","Notes se poochho","Jo kabhi likha ya seekha, wapas poocho: 'Abbu ki dawai ka doctor ne kya kaha tha?'",[],"poocho"]]},
+ {h:"Data ki hifazat",items:[
+  ["💾","Backup","Sab kuch sirf is phone mein hai. Har hafte Backup lo aur file Google Drive ya WhatsApp (apne aap ko) bhej do.",["Aaj page par 'Backup lo' ya Settings > Backup download","File Drive/WhatsApp par save karo","Naye phone par: Settings > Backup wapas lao"],"settings"],
+  ["🔒","Privacy","Notes phone mein rehte hain. Lekin sawal aur 'Meri baatein' Google Gemini ko jate hain. Password, bank, CNIC kabhi mat likho.",[],null]]},
+ {h:"Masle aur hal",items:[
+  ["❓","AI band hai","Settings mein key dobara Save karo. 'Limit aa gayi' aaye to thori der (ya kal) try karo: free key ki rozana had hai.",[],"settings"],
+  ["❓","Mic nahi chal raha","Chrome > Settings > Site settings > Microphone mein ijazat do. Ya keyboard ka mic use karo.",[],null],
+  ["❓","Naya feature nahi dikh raha","App poori band karo (recent apps se hatao) aur dobara kholo. Do dafa karna pare to bhi theek hai.",[],null]]}
+];
+const WEEK1=["Din 1: Key daalo, app install karo, Meri baatein mein 5 baatein likho, ek sawal Bolo par poocho.","Din 2: 5 minute mode + Seerhi mein apna pehla topic (jaise 'Insani jism') shuru karo.","Din 3: Raaste mein Chalte phirte chala ke dekho. Raat ko Bolo par din ki 2 baatein.","Din 4: Log mein 5 qareebi log daalo (birthday ke saath). Diary shuru.","Din 5: Akhbar + Aaj ke rates. Ek YouTube video Share se Ustad ko bhejo.","Din 6: Jo seekha usay 'Ustad ko sikhao' mein samjhao. Tasveer se kuch scan karo.","Din 7: Hafte ka test do, Ilm ka naqsha dekho, aur Backup lo."];
+function Guide(){
+  if(!S.settings.guideSeen) setS("guideSeen",Date.now());
+  const done=new Set(S.settings.guideDone||[]);
+  const mark=async k=>{ const s=new Set(S.settings.guideDone||[]); s.has(k)?s.delete(k):s.add(k); await setS("guideDone",[...s]); render(); };
+  const total=GUIDE.reduce((a,s)=>a+s.items.length,0);
+  const tryIt=to=>to==="expert"?()=>{S.likhoMode="expert";go("likho");}:to==="share"?()=>go("share",{help:true}):()=>go(to);
+  return [hdr("Training","📖 Ustad kaise chalayein","Har feature ka tareeqa. Jo seekh lo uspar ✓ lagao. "+done.size+" / "+total+" mukammal."),
+    el("div",{class:"bar"},el("i",{style:"width:"+Math.round(done.size/total*100)+"%"})),
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Pehla hafta: roz ek qadam"}),el("ol",{class:"small"},...WEEK1.map(x=>el("li",{text:x})))),
+    ...GUIDE.map(sec=>el("section",{class:"card"},el("div",{class:"stamp",text:sec.h}),...sec.items.map(([ic,t,what,steps,to])=>{ const k=sec.h+"|"+t;
+      return el("details",{class:"gd"},el("summary",{},el("span",{text:(done.has(k)?"✓ ":"")+ic+" "+t})),
+        el("div",{class:"stack",style:"padding:8px 0 4px"},el("p",{class:"small",text:what}),
+          steps&&steps.length?el("ol",{class:"small"},...steps.map(s=>el("li",{text:s}))):null,
+          el("div",{class:"row"},to?el("button",{class:"btn sm primary",type:"button",onclick:tryIt(to)},"Abhi try karo →"):null,
+            el("button",{class:"btn sm"+(done.has(k)?"":" ghost"),type:"button",onclick:()=>mark(k)},done.has(k)?"✓ Seekh liya":"Seekh liya")))); })))];
 }
 
 </script>
