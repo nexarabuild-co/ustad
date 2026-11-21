@@ -440,7 +440,7 @@ function toggles(){
     cb.onchange=async()=>{ await store.settings({[key]:cb.checked}); applyLook(); toast(cb.checked?"On ✓":"Off"); };
     return el("label",{class:"f tg"},el("div",{class:"row",style:"justify-content:space-between;align-items:center"},el("b",{text:label}),cb),el("span",{text:sub})); };
   return el("div",{class:"stack"},
-    t("web","🌐 Live internet","Sawal ke jawab Google Search se taaza maloomat aur sources ke saath",true),
+    typeof IS_ART!=="undefined"?null:t("web","🌐 Live internet","Sawal ke jawab Google Search se taaza maloomat aur sources ke saath",true),
     t("simple","🙂 Aasaan mode","Aaj ke page par sirf zaroori cheezein",false),
     t("bigFont","🔠 Bara font","Sab likhai bari",false));
 }
