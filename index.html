@@ -467,13 +467,13 @@ function homeTop(){
 }
 function moreTiles(){
   return el("div",{class:"catgrid"},
-    tile("🪜","Seerhi","Basic → Intermediate → Advanced → Pro",()=>go("seerhi"),true),
     tile("📚","Courses","Roz 10 minute, tarteeb se",()=>go("courses")),
     tile("📄","Kitaab / PDF","Kitaab daalo, chapter-wise samjho",()=>go("kitaab")),
     tile("🩺","Expert check","Doctor, mechanic, aalim ki baat parkho",()=>{S.likhoMode="expert";go("likho");}),
     tile("🧠","Ilm ka naqsha","Kahan mazboot, kahan kamzor",()=>go("naqsha")),
     tile("📰","Akhbar & rates","Live khabrein, sona, dollar, petrol",()=>go("akhbar")),
-    tile("📤","Share se bhejo","YouTube, link, WhatsApp forward",()=>go("share",{help:true})));
+    tile("📤","Share se bhejo","YouTube, link, WhatsApp forward",()=>go("share",{help:true})),
+    tile("🪜","Seerhi","Basic → Intermediate → Advanced → Pro",()=>go("seerhi"),true));
 }
 function homeMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Aur seekho"}),moreTiles()); }
 function seekhoMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Naye tareeqay"}),moreTiles()); }
@@ -1672,7 +1672,7 @@ function Topic(arg){
   const subs=CATS[cat]||[];
   const head=el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>sub?go("topic",{cat}):go("seekho")},"← "+(sub?cat:"Seekho"))),el("div",{class:"stamp",text:cat}),el("h1",{text:sub||cat}));
   const subChips=el("div",{class:"chips"},...subs.map(s=>el("button",{class:"chip",type:"button","aria-pressed":String(s===sub),onclick:()=>go("topic",{cat,sub:s})},s)));
-  const parts=[head,subChips,ladderCard(cat,sub)];
+  const parts=[head,subChips];
   const lessons=S.notes.filter(n=>n.cat===cat&&(!sub||n.sub===sub));
   const doneTitles=lessons.filter(n=>n.kind==="lesson"||n.kind==="language").slice(0,40).map(n=>n.title);
   const topicIn=el("input",{type:"text",id:"topicIn",placeholder:"Khaas topic (optional). Khaali chhoro to Ustad agla topic chunega"});
@@ -1704,6 +1704,7 @@ function Topic(arg){
   parts.push(el("section",{class:"card"},el("div",{class:"stamp",text:sub?"Seekho: "+sub:"Pehle subcategory chuno ya seedha shuru karo"}),topicIn,actions,blk.wrap));
   parts.push(el("section",{class:"card"},el("div",{class:"stamp",text:"Is field ki files ("+lessons.length+")"}),
     live(el("div",{class:"list"}),()=>{const l=S.notes.filter(n=>n.cat===cat&&(!sub||n.sub===sub)).slice(0,40); return l.length?l.map(noteRow):el("p",{class:"muted small",text:"Abhi kuch nahi. Pehla lesson shuru karo."});})));
+  parts.push(ladderCard(cat,sub));
   return parts;
 }
 
