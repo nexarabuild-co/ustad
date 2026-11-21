@@ -456,14 +456,14 @@ function activeCourse(){ return (S.settings.courses||[]).find(c=>(c.done||[]).le
 /* ---------- Home additions ---------- */
 function homeTop(){
   const c=activeCourse(); const n=c?(c.done||[]).length:0;
-  return el("section",{class:"card hot"},
+  return el("div",{class:"stack"},...homeAlerts(),el("section",{class:"card hot"},
     el("div",{class:"row",style:"gap:16px;align-items:center"},
       el("button",{class:"bigmic",type:"button","aria-label":"Bolo",onclick:()=>go("bolo",{auto:true}),html:MIC_SVG+"<span>Bolo</span>"}),
       el("div",{class:"grow stack"},el("div",{class:"stamp",text:"Kuch bhi bolo"}),el("p",{class:"small",text:"Sawal, kaam, rate, ya jo dekha. Ustad khud samjhega kahan rakhna hai."}))),
     el("div",{class:"row"},
       el("button",{class:"btn primary",type:"button",onclick:()=>{S.panch=null;go("panch");}},"⚡ 5 minute mode"),
       el("button",{class:"btn",type:"button",onclick:()=>go("akhbar")},"📰 Aaj ki khabrein"),
-      c?el("button",{class:"btn",type:"button",onclick:()=>go("course",c.id)},"📚 Din "+(n+1)+": "+c.title.slice(0,24)):null));
+      c?el("button",{class:"btn",type:"button",onclick:()=>go("course",c.id)},"📚 Din "+(n+1)+": "+c.title.slice(0,24)):null)));
 }
 function moreTiles(){
   return el("div",{class:"catgrid"},
@@ -475,7 +475,7 @@ function moreTiles(){
     tile("📤","Share se bhejo","YouTube, link, WhatsApp forward",()=>go("share",{help:true})),
     tile("🪜","Seerhi","Basic → Intermediate → Advanced → Pro",()=>go("seerhi"),true));
 }
-function homeMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Aur seekho"}),moreTiles()); }
+function homeMore(){ return el("div",{class:"stack"},el("section",{class:"card"},el("div",{class:"stamp",text:"Meri zindagi"}),lifeTiles()),el("section",{class:"card"},el("div",{class:"stamp",text:"Aur seekho"}),moreTiles())); }
 function seekhoMore(){ return el("section",{class:"card"},el("div",{class:"stamp",text:"Naye tareeqay"}),moreTiles()); }
 
 /* ---------- Expert check ---------- */
@@ -492,11 +492,15 @@ function Bolo(){
     const you=el("div",{class:"bub user",text:t}); const res=el("div",{class:"stack"}); log.prepend(el("section",{class:"card"},you,res));
     res.append(el("p",{class:"thinking",text:"Samajh raha hoon"}));
     let r;
-    try{ r=await S.sample.json(`User ne apni learning app mein bola: """${t}"""\nIsay classify karo. Reply sirf JSON:\n{"type":"task"|"price"|"question"|"note"|"expert"|"debate"|"visit","task":"agar kaam hai to chhota saaf kaam","price":{"item":"cheez ka naam chhote huroof mein","price":number,"unit":"kg|litre|dozen|piece|tola|maund|other","place":"dukan/bazaar agar bataya"}}\nQawaid: "yaad dilana / lana hai / karna hai / mangwaya" = task. Kisi cheez ka rate batana ("aloo 120 rupay kilo") = price. Kuch poochna ya samajhna = question. Doctor/mechanic/aalim/wakeel/dukandar ki baat parakhna = expert. Kisi se behas ya baat-cheet ka zikr = debate. Kisi dukan/business ko dekhne ka zikr = visit. Baaki jo dekha, suna, socha = note.`,{cache:false}); }
+    try{ r=await S.sample.json(`User ne apni learning app mein bola: """${t}"""\nIsay classify karo. Reply sirf JSON:\n{"type":"task"|"price"|"question"|"note"|"expert"|"debate"|"visit"|"remember"|"person"|"recall"|"prep","task":"agar kaam hai to chhota saaf kaam","fact":"remember ke liye: user ke baare mein saaf ek jumla (jaise 'User ki beti 3 saal ki hai')","person":{"name":"insaan ka naam","fact":"us ke baare mein baat"},"price":{"item":"cheez ka naam chhote huroof mein","price":number,"unit":"kg|litre|dozen|piece|tola|maund|other","place":"dukan/bazaar agar bataya"}}\nQawaid: "yaad dilana / lana hai / karna hai / mangwaya" = task. Kisi cheez ka rate batana ("aloo 120 rupay kilo") = price. Kuch poochna ya samajhna = question. Doctor/mechanic/aalim/wakeel/dukandar ki baat parakhna = expert. Kisi se behas ya baat-cheet ka zikr = debate. Kisi dukan/business ko dekhne ka zikr = visit. "Yaad rakhna / mere baare mein / mujhe ... hai" (user apne baare mein bata raha hai) = remember. Kisi khaas insaan ke baare mein maloomat ("Ahmed ko chai bina cheeni pasand hai", "Bilal ka beta medical mein hai") = person. Apni purani baaton/notes ke baare mein poochna ("maine kya likha tha", "pichli dafa kya seekha") = recall. Kal/aaj kahin jaane ki tayyari (doctor, interview, mechanic, meeting) = prep. Baaki jo dekha, suna, socha = note.`,{cache:false}); }
     catch(e){ r={type:"note"}; }
     res.replaceChildren();
     if(r.type==="task"&&r.task){ await store.put("tasks",uid(),{text:String(r.task),done:false,ts:Date.now()}); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ Kaam list mein daal diya: "+r.task}),el("button",{class:"btn sm ghost",type:"button",onclick:()=>{ S.likhoMode="auto"; S.prefill=t; go("likho"); }},"Nahi, isay note samjho")); return; }
     if(r.type==="price"&&r.price&&r.price.item&&Number(r.price.price)>0){ const p=r.price; await store.put("prices",uid(),{item:String(p.item).toLowerCase(),price:Number(p.price),unit:p.unit||"kg",place:p.place||"",city:S.settings.city,ts:Date.now()}); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ Rate save: "+p.item+" Rs "+p.price+"/"+(p.unit||"kg")}),el("button",{class:"btn sm",type:"button",onclick:()=>go("bazaar")},"Bazaar dekho")); return; }
+    if(r.type==="remember"){ await addFact(r.fact||t); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ Yaad kar liya: "+(r.fact||t)}),el("button",{class:"btn sm",type:"button",onclick:()=>go("profile")},"Meri baatein")); return; }
+    if(r.type==="person"&&r.person&&r.person.name){ const p=await addPersonFact(r.person.name,r.person.fact||t); res.append(el("p",{class:"small",style:"color:var(--green)",text:"✓ "+p.name+" ke card mein save: "+(r.person.fact||t)}),el("button",{class:"btn sm",type:"button",onclick:()=>go("person",p.id)},p.name+" ka card")); return; }
+    if(r.type==="recall"){ const blk=aiBlock(); res.append(el("div",{class:"stamp",text:"Aap ke notes se"}),blk.wrap); const out=await recallAnswer(t,blk); if(out) res.append(el("div",{class:"row"},speakBtn(()=>out.body))); return; }
+    if(r.type==="prep"){ S.prepText=t; res.append(el("p",{class:"small",text:"Tayyari ka page khol raha hoon..."})); go("tayyari"); setTimeout(()=>{ const b=[...document.querySelectorAll("#view button")].find(x=>x.textContent==="Briefing banao"); b&&b.click(); },50); return; }
     const mode=BOLO_MODE[r.type]||"auto"; const blk=aiBlock(); res.append(el("div",{class:"stamp",text:LMODES[mode]?LMODES[mode][0]:"Note"}),blk.wrap);
     const out=await runAI({prompt:likhoPrompt(mode,t),kind:mode==="auto"?"note":mode,text:t,blk});
     if(out) res.append(el("div",{class:"row"},speakBtn(()=>out.body)));
@@ -770,6 +774,287 @@ function SeerhiView(id){
     el("div",{class:"row"},el("button",{class:"btn sm danger",type:"button",onclick:async()=>{ if(!confirm("Yeh seerhi mitayein? (Notes aur cards rahenge)")) return; await saveLadders(list.filter(x=>x.id!==l.id)); go("seerhi"); }},"Seerhi mitao"))];
 }
 
+/* ===== Ustad v4: profile memory, ask-your-notes, people, diary, walk mode, teach-back, tayyari, dawai, test & report, backup reminder ===== */
+Object.assign(EXTRA,{profile:Profile,poocho:Poocho,log:People,person:PersonView,diary:Diary,walk:Walk,sikhao:Sikhao,tayyari:Tayyari,dawai:Dawai,report:Report});
+const DAYMS=86400000;
+const setS=(k,v)=>store.settings({[k]:v});
+
+/* ---------- 1. Profile memory ---------- */
+function profileText(){
+  const p=(S.settings.profile||[]).slice(0,60).map(x=>"- "+x.t).join("\n");
+  return p?"\n\nUser ne apne baare mein yeh bataya hai. Jawab inke hisaab se personal banao (misaalein, mashware), lekin har dafa inka zikr mat karo:\n"+p:"";
+}
+async function addFact(t){ t=String(t||"").trim(); if(!t) return; await setS("profile",[{id:uid(),t,ts:Date.now()},...(S.settings.profile||[])]); }
+function Profile(){
+  const list=S.settings.profile||[];
+  const ta=el("input",{type:"text",placeholder:"Jaise: Meri beti 3 saal ki hai / Mujhe sugar hai / Main Honda City chalata hoon"});
+  const add=async()=>{ const v=ta.value.trim(); if(!v){toast("Kuch likho ya bolo");return;} await addFact(v); toast("Yaad kar liya ✓"); render(); };
+  const ideas=["Mera kaam: ","Ghar mein kaun kaun hai: ","Meri sehat (bimari, allergy): ","Meri gaari / bike: ","Mujhe yeh pasand hai: ","Mera goal is saal: ","Mera sheher / area: ","Mujhe in cheezon se dar lagta hai: "];
+  return [hdr("Ustad aap ko jaane","🧠 Meri baatein","Jo yahan likhoge, Ustad har jawab mein yaad rakhega. Bolo button par \"yaad rakhna, ...\" bolne se bhi yahan aa jata hai. Sab sirf is phone mein."),
+    el("section",{class:"card hot"},el("div",{class:"row"},el("div",{class:"grow"},ta),micBtn(ta)),el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:add},"Yaad rakho")),
+      el("div",{class:"chips"},...ideas.map(x=>el("button",{class:"chip",type:"button",onclick:()=>{ta.value=x;ta.focus();}},x.replace(": ",""))))),
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Ustad ko yeh pata hai ("+list.length+")"}),
+      list.length?el("div",{class:"list"},...list.map(f=>el("div",{class:"item"},el("div",{class:"grow"},el("div",{class:"t",text:f.t}),el("div",{class:"s",text:new Date(f.ts).toLocaleDateString("en-GB")})),
+        el("button",{class:"btn sm ghost",type:"button","aria-label":"Mitao",onclick:async()=>{ await setS("profile",(S.settings.profile||[]).filter(x=>x.id!==f.id)); render(); }},"✕")))):el("p",{class:"small muted",text:"Abhi kuch nahi. Upar se shuru karo."}))];
+}
+
+/* ---------- 2. Ask your own notes ---------- */
+function relevantNotes(q,n){
+  const words=[...new Set(String(q).toLowerCase().split(/[^a-z0-9؀-ۿ]+/).filter(w=>w.length>2))];
+  const sc=S.notes.map(x=>{ const hay=((x.title||"")+" "+(x.text||"")+" "+(x.ai||"").slice(0,1500)+" "+x.cat+" "+(x.sub||"")).toLowerCase(); let s=0; for(const w of words) if(hay.includes(w)) s+=(x.title||"").toLowerCase().includes(w)?3:1; return [s,x]; });
+  const hit=sc.filter(a=>a[0]>0).sort((a,b)=>b[0]-a[0]||b[1].ts-a[1].ts).map(a=>a[1]);
+  return (hit.length?hit:S.notes.slice().sort((a,b)=>b.ts-a.ts)).slice(0,n||25);
+}
+function notesContext(list){ return list.map(x=>`[${new Date(x.ts).toLocaleDateString("en-GB")} · ${KIND[x.kind]||x.kind} · ${x.cat}] ${x.title}\nUser ne likha: ${(x.text||"").slice(0,400)}\nUstad ka jawab (khulasa): ${(x.ai||"").replace(/\s+/g," ").slice(0,600)}`).join("\n---\n"); }
+function peopleContext(){ return (S.settings.people||[]).map(p=>`${p.name}${p.rel?" ("+p.rel+")":""}${p.bday?", birthday "+p.bday:""}: ${(p.facts||[]).slice(0,10).map(f=>f.t).join("; ")}`).join("\n"); }
+async function recallAnswer(q,blk){
+  const ctx=notesContext(relevantNotes(q,25));
+  return runAI({noSave:true,blk,prompt:persona()+`\n\nUser apni hi purani yaadon/notes ke baare mein pooch raha hai: "${q}"\n\nUser ke notes (sirf yahi asal record hai):\n${ctx||"(koi note nahi)"}\n\nUser ke log:\n${peopleContext()||"-"}\n\nJawab sirf in notes ki bunyaad par do aur tareekh batao kab likha tha. Agar notes mein nahi hai to saaf kaho "aap ke notes mein yeh nahi mila", phir chaho to apne ilm se mukhtasar jawab do aur wazeh likho ke yeh notes se nahi.`});
+}
+function Poocho(){
+  const blk=aiBlock();
+  const box=talkBox({placeholder:"Jaise: Pichle mahine car ke baare mein kya seekha? / Doctor ne abbu ki dawai ka kya kaha tha?",onSend:async t=>{ if(needAI()) return; blk.out.replaceChildren(); await recallAnswer(t,blk); }});
+  return [hdr("Apni yaadon se","🔎 Apne notes se poochho","Ustad aap ke "+S.notes.length+" notes mein dhoond kar jawab dega."),el("section",{class:"card hot"},box),el("section",{class:"card"},blk.wrap)];
+}
+
+/* ---------- 3. People diary ---------- */
+function nextBday(b){ if(!b) return null; const [,m,d]=b.split("-").map(Number); if(!m||!d) return null; const n=new Date(); let x=new Date(n.getFullYear(),m-1,d); if(x<new Date(n.getFullYear(),n.getMonth(),n.getDate())) x=new Date(n.getFullYear()+1,m-1,d); return Math.round((x-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/DAYMS); }
+function bdaysSoon(days){ return (S.settings.people||[]).map(p=>[p,nextBday(p.bday)]).filter(a=>a[1]!=null&&a[1]<=days).sort((a,b)=>a[1]-b[1]); }
+async function savePeople(l){ await setS("people",l); }
+async function addPersonFact(name,fact){
+  const list=(S.settings.people||[]).slice(); const key=String(name).trim().toLowerCase();
+  let p=list.find(x=>x.name.toLowerCase()===key);
+  if(!p){ p={id:uid(),name:String(name).trim(),rel:"",bday:"",facts:[],ts:Date.now()}; list.unshift(p); }
+  if(fact) p.facts=[{t:String(fact),ts:Date.now()},...(p.facts||[])];
+  p.last=Date.now(); await savePeople(list.map(x=>x.id===p.id?{...p}:x)); return p;
+}
+function People(){
+  const list=(S.settings.people||[]).slice().sort((a,b)=>(b.last||b.ts)-(a.last||a.ts));
+  const n=el("input",{type:"text",placeholder:"Naam (jaise Ahmed bhai)"}); const r=el("input",{type:"text",placeholder:"Rishta / kahan se (dost, boss, chacha...)"});
+  const soon=bdaysSoon(30);
+  return [hdr("Rishtay yaad rakho","👥 Log","Har insaan ka card: kya pasand hai, kya baat hui, birthday. Milne se pehle Ustad yaad dilayega."),
+    soon.length?el("section",{class:"card hot"},el("div",{class:"stamp amber",text:"Aane wale birthday"}),...soon.map(([p,d])=>el("p",{class:"small",text:"🎂 "+p.name+": "+(d===0?"AAJ":d===1?"kal":d+" din baad")}))):null,
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Naya insaan"}),n,r,el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:async()=>{ if(!n.value.trim()){toast("Naam likho");return;} const p=await addPersonFact(n.value,null); if(r.value.trim()) await savePeople((S.settings.people||[]).map(x=>x.id===p.id?{...x,rel:r.value.trim()}:x)); go("person",p.id); }},"Add karo"))),
+    list.length?el("section",{class:"card"},el("div",{class:"stamp",text:list.length+" log"}),el("div",{class:"list"},...list.map(p=>{ const d=nextBday(p.bday);
+      return el("button",{class:"item",type:"button",onclick:()=>go("person",p.id)},el("div",{class:"grow"},el("div",{class:"t",text:p.name+(p.rel?" · "+p.rel:"")}),el("div",{class:"s",text:(p.facts||[]).length+" baatein"+(d!=null&&d<=30?" · 🎂 "+(d===0?"aaj":d+" din"):"")})),el("span",{class:"small muted",text:"→"})); }))):null];
+}
+function PersonView(id){
+  const p=(S.settings.people||[]).find(x=>x.id===id); if(!p) return [hdr("Log","Nahi mila")];
+  const upd=async ch=>{ await savePeople((S.settings.people||[]).map(x=>x.id===id?{...x,...ch}:x)); render(); };
+  const f=el("input",{type:"text",placeholder:"Nayi baat: jaise \"chai bina cheeni peetay hain\" / \"beta medical mein hai\""});
+  const rel=el("input",{type:"text",value:p.rel||"",placeholder:"Rishta"}); rel.onchange=()=>upd({rel:rel.value.trim()});
+  const bd=el("input",{type:"date",value:p.bday||""}); bd.onchange=()=>upd({bday:bd.value});
+  const blk=aiBlock(); const why=el("input",{type:"text",placeholder:"Kis silsile mein mil rahe ho? (optional)"});
+  const brief=el("button",{class:"btn primary",type:"button"},"🤝 Milne se pehle briefing");
+  brief.onclick=async()=>{ if(needAI()) return; brief.disabled=true;
+    const ctx=notesContext(relevantNotes(p.name,8).filter(x=>((x.text||"")+(x.ai||"")+(x.title||"")).toLowerCase().includes(p.name.toLowerCase().split(" ")[0])));
+    await runAI({noSave:true,blk,prompt:persona()+`\n\nUser "${p.name}"${p.rel?" ("+p.rel+")":""} se milne ja raha hai.${why.value.trim()?" Silsila: "+why.value.trim()+".":""}\nUser ko is insaan ke baare mein yeh pata hai:\n${(p.facts||[]).map(x=>"- "+x.t+" ("+new Date(x.ts).toLocaleDateString("en-GB")+")").join("\n")||"- kuch nahi"}\n${p.bday?"Birthday: "+p.bday+" (agle "+nextBday(p.bday)+" din mein)":""}\nNotes jahan zikr aaya:\n${ctx||"-"}\n\n## Yaad rakho\n3-5 baatein jo milte waqt yaad honi chahiye.\n## Kya poochna hai\nUn ki zindagi ki pichli baaton se 4 personal sawal (jaise "beta ka result aaya?").\n## Baat kaise chalani hai\n## Kya nahi bolna\n## Milne ke baad\nKya note karna hai.`}); brief.disabled=false; };
+  return [el("div",{class:"stack"},el("div",{class:"row"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>go("log")},"← Log")),el("div",{class:"stamp",text:"Insaan"}),el("h1",{text:p.name})),
+    el("section",{class:"card"},el("label",{class:"f"},"Rishta",rel),el("label",{class:"f"},"Birthday",bd)),
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Nayi baat yaad rakho"}),el("div",{class:"row"},el("div",{class:"grow"},f),micBtn(f)),el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:async()=>{ if(!f.value.trim()) return; await upd({facts:[{t:f.value.trim(),ts:Date.now()},...(p.facts||[])],last:Date.now()}); toast("Save ✓"); }},"Save"))),
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Baatein ("+(p.facts||[]).length+")"}),el("div",{class:"list"},...(p.facts||[]).map((x,i)=>el("div",{class:"item"},el("div",{class:"grow"},el("div",{class:"t",text:x.t}),el("div",{class:"s",text:new Date(x.ts).toLocaleDateString("en-GB")})),el("button",{class:"btn sm ghost",type:"button","aria-label":"Mitao",onclick:()=>upd({facts:p.facts.filter((_,k)=>k!==i)})},"✕"))))),
+    el("section",{class:"card"},why,el("div",{class:"row"},brief),blk.wrap),
+    el("div",{class:"row"},el("button",{class:"btn sm danger",type:"button",onclick:async()=>{ if(!confirm(p.name+" ka card mitayein?")) return; await savePeople((S.settings.people||[]).filter(x=>x.id!==id)); go("log"); }},"Card mitao"))];
+}
+
+/* ---------- 4. Mood diary ---------- */
+const MOODS=["😞","😕","😐","🙂","😄"];
+function Diary(){
+  const st=S.diaryDraft||(S.diaryDraft={mood:null,sleep:"7"});
+  const ta=el("textarea",{placeholder:"Aaj kaisa din tha? Kya acha hua, kya bura, kis baat ki fikr hai...",style:"min-height:110px"});
+  const moods=el("div",{class:"row"},...MOODS.map((m,i)=>el("button",{class:"chip",type:"button","aria-pressed":String(st.mood===i+1),style:"font-size:24px",onclick:()=>{st.mood=i+1;render();}},m)));
+  const sl=el("select",{"aria-label":"Neend"},...["3","4","5","6","7","8","9","10"].map(v=>el("option",{value:v,selected:v===st.sleep},v+" ghante"))); sl.onchange=()=>{st.sleep=sl.value;};
+  const save=el("button",{class:"btn primary",type:"button",onclick:async()=>{ if(!st.mood){toast("Pehle mood chuno");return;} const t=ta.value.trim();
+    await store.put("notes",uid(),{kind:"diary",text:t,ai:"",title:"Diary "+today()+" "+MOODS[st.mood-1],cat:"Zehni mazbooti",sub:"",ts:Date.now(),day:today(),mood:st.mood,sleep:Number(st.sleep)});
+    S.diaryDraft=null; toast("Diary save ✓"); render(); }},"Save karo");
+  const past=S.notes.filter(n=>n.kind==="diary").sort((a,b)=>b.ts-a.ts);
+  const blk=aiBlock(); const pat=el("button",{class:"btn",type:"button"},"📈 Mere patterns batao");
+  pat.onclick=async()=>{ if(needAI()) return; if(past.length<3){toast("Kam az kam 3 din ki diary chahiye");return;} pat.disabled=true;
+    const rows=past.slice(0,45).map(n=>`${new Date(n.ts).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})} | mood ${n.mood}/5 | neend ${n.sleep||"?"}h | ${(n.text||"").slice(0,300)}`).join("\n");
+    await runAI({kind:"mood",text:"Diary patterns "+today(),blk,extra:{title:"Diary patterns "+today()},prompt:persona()+`\n\nUser ki diary (mood 1-5, neend):\n${rows}\n\nEk samajhdar dost aur psychologist ki tarah:\n## Patterns\nMood kab acha, kab bura: neend, din, logon, kaam se kya taalluq.\n## Jo baar baar aata hai\nFikrein ya khushiyan jo repeat hoti hain.\n## 3 chhoti tabdeeliyan\nPractical, is hafte se.\n## Ek achi baat\nJo user acha kar raha hai.\nAgar mood lagataar bohot neeche ho to narmi se kaho ke kisi qareebi ya professional se baat karna taqat hai.`+jsonTail("2-4")}); pat.disabled=false; };
+  return [hdr("Roz 1 minute","📔 Diary","Mood, neend aur do lines. Hafte baad Ustad aap ke patterns batayega."),
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Aaj ka mood"}),moods,el("label",{class:"f"},"Raat ki neend",sl),el("div",{class:"row",style:"align-items:flex-start"},el("div",{class:"grow"},ta),micBtn(ta)),el("div",{class:"row"},save)),
+    el("section",{class:"card"},el("div",{class:"row"},pat),blk.wrap),
+    past.length?el("section",{class:"card"},el("div",{class:"stamp",text:"Pichle din"}),el("div",{class:"list"},...past.slice(0,30).map(n=>el("button",{class:"item",type:"button",onclick:()=>go("note",n.id)},el("span",{style:"font-size:22px",text:MOODS[(n.mood||3)-1]}),el("div",{class:"grow"},el("div",{class:"t",text:new Date(n.ts).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"})+" · "+(n.sleep||"?")+"h neend"}),el("div",{class:"s",text:(n.text||"").slice(0,90)})))))):null];
+}
+
+/* ---------- 5. Walk / drive mode (hands-free) ---------- */
+function listenOnce(ms){
+  return new Promise(res=>{
+    const ta=el("textarea",{class:"vh","aria-hidden":"true"}); document.body.append(ta); let done=false;
+    const fin=()=>{ if(done) return; done=true; clearTimeout(tm); const v=ta.value.trim(); ta.remove(); res(v); };
+    const tm=setTimeout(()=>{ if(S.dict&&S.dict.active()) S.dict.stop(); else fin(); },ms||15000);
+    if(S.dict){ S.dictTarget=ta; S.dictDone=fin; S.dict.start().catch(()=>{ S.dictDone=null; fin(); }); return; }
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){ fin(); return; }
+    const r=new SR(); r.lang=S.settings.micLang||"ur-PK"; r.interimResults=false; r.continuous=false;
+    r.onresult=e=>{ ta.value=Array.from(e.results).map(x=>x[0].transcript).join(" "); }; r.onend=fin; r.onerror=()=>{};
+    try{ r.start(); }catch(e){ fin(); }
+  });
+}
+const say=t=>speakLines([{text:t}]);
+function Walk(){
+  const W=S.walk;
+  if(W&&W.running) return [hdr("Hands-free","🚶 Chalte phirte"),el("section",{class:"card hot"},el("div",{class:"stamp",text:W.title||"Chal raha hai"}),W.box,el("div",{class:"row"},el("button",{class:"btn danger",type:"button",onclick:()=>{W.stop=true;stopVoice();if(S.dict&&S.dict.active())S.dict.stop();}},"■ Roko")))];
+  const t=el("input",{type:"text",placeholder:"Topic (khaali chhoro to Ustad khud chunega)"});
+  const lad=(S.settings.ladders||[]).map(l=>{ const i=curLevel(l); if(i<0) return null; const d=new Set(l.done||[]); const k=l.levels[i].topics.findIndex((_,k)=>!d.has(i+"-"+k)); return l.title+" ("+l.levels[i].name+"): "+l.levels[i].topics[k]; }).filter(Boolean);
+  const start=mode=>()=>{ if(needAI()) return; if(!voiceOK()){toast("Is phone par awaaz nahi chal rahi");return;} runWalk(mode,t.value.trim()); };
+  return [hdr("Hands-free","🚶 Chalte phirte","Gaari, walk ya kaam karte hue. Ustad bolega, sawal poochega, aap bol kar jawab do. Screen on rakho."),
+    el("section",{class:"card hot"},el("div",{class:"stamp",text:"Naya dars suno"}),el("div",{class:"row"},el("div",{class:"grow"},t),micBtn(t)),
+      lad.length?el("div",{class:"chips"},...lad.slice(0,4).map(x=>el("button",{class:"chip",type:"button",onclick:()=>{t.value=x;}},"🪜 "+x))):null,
+      el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:start("lesson")},"▶ Dars shuru"))),
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Purane cards dohrao"}),el("p",{class:"small muted",text:"Ustad sawal bolega, aap jawab bolo, phir woh sahi jawab batayega aur poochega yaad tha ya nahi (\"haan\" / \"nahi\")."}),
+      el("div",{class:"row"},el("button",{class:"btn",type:"button",onclick:start("cards")},"▶ "+Math.min(10,dueCards().length||S.cards.length)+" cards suno")))];
+}
+async function runWalk(mode,topic){
+  const box=el("div",{class:"stack"}); const W=S.walk={running:true,stop:false,box,title:""}; go("walk");
+  let lock=null; try{ lock=await navigator.wakeLock.request("screen"); }catch(e){}
+  const line=(who,t)=>{ box.append(el("p",{class:who==="u"?"small":"",style:who==="u"?"color:var(--accent)":"",text:(who==="u"?"🎤 ":"")+t})); box.lastChild.scrollIntoView({block:"nearest"}); };
+  const status=el("p",{class:"thinking",text:"Tayyar ho raha hai"}); box.append(status);
+  try{
+    if(mode==="cards"){
+      const due=dueCards(); const pool=(due.length?due:S.cards.slice().sort(()=>Math.random()-.5)).slice(0,10); W.title="Cards dohrao"; status.remove();
+      let right=0;
+      for(const c of pool){ if(W.stop) break;
+        line("s","Sawal: "+c.q); await say("Sawal. "+c.q); if(W.stop) break;
+        const a=await listenOnce(12000); if(a) line("u",a); if(W.stop) break;
+        line("s","Jawab: "+c.a); await say("Sahi jawab. "+c.a+". Yaad tha? Haan ya nahi."); if(W.stop) break;
+        const yn=(await listenOnce(6000)).toLowerCase(); if(yn) line("u",yn);
+        const ok=/haan|han|ha\b|yes|yaad tha|ji|ہاں|جی/.test(yn)&&!/nahi|nahin|no\b|نہیں/.test(yn); if(ok) right++;
+        await store.patch("cards",c.id,schedule(c,ok?2:0)).catch(()=>{});
+      }
+      if(!W.stop){ line("s",`Khatam. ${right}/${pool.length} yaad the.`); await say(`Shabash. ${right} mein se ${pool.length} yaad the.`); }
+    } else {
+      const j=await S.sample.json(persona()+`\n\nHANDS-FREE AUDIO DARS (user gaari chala raha ya chal raha hai, screen nahi dekh sakta). Topic: ${topic||"tum chuno: user ke liye kaam ka, dilchasp, kam-maloom topic"}.\n5 hisson ka dars banao. Har hissa: "say" = 60-90 alfaaz jo bolne mein acha lage (Roman Urdu, koi markdown, list ya symbol nahi, misaal ke saath), phir "q" = us hisse par ek chhota sawal, "a" = chhota sahi jawab.\nReply sirf JSON: {"title":"...","cat":"category (${Object.keys(CATS).join(", ")})","parts":[{"say":"...","q":"...","a":"..."}]}`,{cache:false});
+      const parts=(j&&j.parts||[]).filter(p=>p&&p.say); if(!parts.length) throw {code:"bad_json"};
+      W.title=j.title||topic||"Dars"; status.remove(); box.prepend(el("h3",{text:W.title})); await say(W.title);
+      const log=[]; let right=0;
+      for(const p of parts){ if(W.stop) break;
+        line("s",p.say); await say(p.say); if(W.stop) break;
+        line("s","❓ "+p.q); await say("Sawal. "+p.q); if(W.stop) break;
+        const a=await listenOnce(15000); if(W.stop) break;
+        let fb="Jawab: "+p.a;
+        if(a){ line("u",a); try{ const g=await S.sample.json(`Sawal: ${p.q}\nSahi jawab: ${p.a}\nUser ne bola (speech-to-text, ghaltiyan ho sakti hain): ${a}\nKya user ka jawab maani ke lihaaz se sahi hai? Reply sirf JSON: {"ok":true|false,"fb":"Roman Urdu mein 1 chhoti line: shabash ya sahi jawab"}`,{cache:false}); if(g&&g.ok) right++; fb=(g&&g.fb)||fb; }catch(e){} }
+        line("s",fb); await say(fb); log.push(p);
+      }
+      if(log.length){ await saveNote({kind:"walk",text:"Chalte phirte: "+W.title,body:log.map(p=>p.say+"\n\n**Sawal:** "+p.q+"\n**Jawab:** "+p.a).join("\n\n"),meta:{title:W.title,cat:j.cat,sub:"",cards:log.map(p=>({q:p.q,a:p.a})),tasks:[]}});
+        if(!W.stop){ line("s",`Dars khatam. ${right}/${log.length} sahi.`); await say(`Dars khatam. ${right} sawal sahi. Note aur cards save ho gaye.`); } }
+    }
+  }catch(e){ status.remove(); line("s",errMsg(e)); }
+  try{ lock&&lock.release(); }catch(e){}
+  W.running=false; document.querySelectorAll("#view .btn.danger").forEach(x=>x.remove()); box.append(el("div",{class:"row"},el("button",{class:"btn primary",type:"button",onclick:()=>{S.walk=null;go("walk");}},"Naya dars"),el("button",{class:"btn",type:"button",onclick:()=>{S.walk=null;go("aaj");}},"Aaj par wapis")));
+}
+
+/* ---------- 6. Teach-back ---------- */
+function Sikhao(){
+  const recent=S.notes.filter(n=>["lesson","walk","kitaab","video","question"].includes(n.kind)).slice(0,8).map(n=>n.title);
+  const t=el("input",{type:"text",value:S.teachTopic||"",placeholder:"Kya samjhaoge? Jaise: Inflation kaise hoti hai"}); t.oninput=()=>{S.teachTopic=t.value;};
+  const blk=aiBlock();
+  const box=talkBox({placeholder:"Ab Ustad ko aise samjhao jaise kisi 12 saal ke bachay ko. Bolo ya likho.",onSend:async ex=>{ if(needAI()) return; const topic=t.value.trim()||"(user ne topic nahi bataya; explanation se andaza lagao)";
+    await runAI({kind:"teachback",text:"Samjhaya: "+topic+"\n\n"+ex,blk,extra:{title:"Teach-back · "+topic.slice(0,50)},prompt:persona()+`\n\nTEACH-BACK. User ne yeh topic khud samjhaya: "${topic}"\nUser ki explanation (bol kar, typos ho sakte hain):\n"""${ex}"""\n\nSakht lekin dost jaisa ustad bano:\n## Number: X/10\nPehli line mein.\n## Kya bilkul sahi tha\n## Kya ghalat tha\nHar ghalti aur sahi baat.\n## Kya miss hua\nAham hissay jo nahi aaye.\n## Behtar explanation\n6-8 line mein woh explanation jo 10/10 hoti.\n## Agli dafa\nYaad rakhne ka ek hook.`+jsonTail("4-6")}); }});
+  return [hdr("Samjhao to yaad rahega","🧑‍🏫 Ustad ko sikhao","Aap samjhao, Ustad number dega aur batayega kya ghalat ya kam tha. Yaad karne ka sab se pakka tareeqa."),
+    el("section",{class:"card"},el("div",{class:"stamp",text:"Topic"}),t,recent.length?el("div",{class:"chips"},...recent.map(x=>el("button",{class:"chip",type:"button",onclick:()=>{S.teachTopic=x;t.value=x;}},x.slice(0,40)))):null),
+    el("section",{class:"card hot"},box),el("section",{class:"card"},blk.wrap)];
+}
+
+/* ---------- 7. Kal ki tayyari ---------- */
+const PREP_IDEAS=["Kal doctor ke paas ja raha hoon","Car mechanic ke paas gaari le ja raha hoon","Job interview hai","Property dekhne ja raha hoon","Shaadi / rishte ki baat karne ja rahe hain","Bank mein account / loan ki baat","Wakeel se milna hai","Naya phone / laptop khareedna hai"];
+function Tayyari(){
+  const t=el("textarea",{value:S.prepText||"",placeholder:"Kahan ja rahe ho, kis se milna hai, kya masla hai? Jitni detail utna acha.",style:"min-height:90px"}); t.value=S.prepText||""; t.oninput=()=>{S.prepText=t.value;};
+  const blk=aiBlock(); const b=el("button",{class:"btn primary",type:"button"},"Briefing banao");
+  b.onclick=async()=>{ if(needAI()) return; const v=t.value.trim(); if(!v){toast("Pehle batao kahan ja rahe ho");return;} b.disabled=true;
+    const ppl=(S.settings.people||[]).filter(p=>v.toLowerCase().includes(p.name.toLowerCase().split(" ")[0])).map(p=>p.name+": "+(p.facts||[]).map(f=>f.t).join("; ")).join("\n");
+    await runAI({kind:"tayyari",text:v,blk,search:true,extra:{title:"Tayyari · "+v.slice(0,50)},prompt:persona()+`\n\nKAL KI TAYYARI. User ne bataya: """${v}"""\n${ppl?"Jin logon ka zikr hai unke baare mein user ke notes:\n"+ppl+"\n":""}Zaroorat ho to internet se taaza rates/qawaid dekho.\n10 minute mein user ko itna tayyar karo ke woh wahan sab se samajhdar lage aur koi usay bewaqoof na bana sake:\n## 2 minute ka ilm\nIs situation ki bunyaad jo pata honi chahiye.\n## Saath kya le jana hai\nChecklist (documents, reports, cash waghera).\n## Yeh sawal zaroor poochna\n6-8 sawal, tarteeb se.\n## Kya kehna, kaise kehna\nAsar daar jumlay.\n## Red flags\nDhoka ya ghalat mashwara kaise pehchanein.\n## Aam rates / waqt\nPakistan mein kitna kharcha aur waqt lagta hai.\n## Wapsi par note karo`+jsonTail("4-6")}); b.disabled=false; };
+  return [hdr("Pehle se tayyar","📋 Kal ki tayyari","Doctor, mechanic, interview, property, bank... jahan bhi ja rahe ho, 10 minute ki briefing."),
+    el("section",{class:"card hot"},el("div",{class:"row",style:"align-items:flex-start"},el("div",{class:"grow"},t),micBtn(t)),el("div",{class:"chips"},...PREP_IDEAS.map(x=>el("button",{class:"chip",type:"button",onclick:()=>{S.prepText=x+": ";t.value=S.prepText;t.focus();}},x))),el("div",{class:"row"},b)),
+    el("section",{class:"card"},blk.wrap)];
+}
+
+/* ---------- 8. Dawai scanner ---------- */
+function Dawai(){
+  const cam=el("input",{type:"file",accept:"image/*",capture:"environment",id:"dwCam",class:"vh"});
+  const gal=el("input",{type:"file",accept:"image/*",id:"dwGal",class:"vh"});
+  const prev=el("img",{class:"preview",alt:"Dawai ki tasveer",hidden:!S.dwFile});
+  if(S.dwFile) prev.src=URL.createObjectURL(S.dwFile);
+  const pick=f=>{ if(!f) return; S.dwFile=f; prev.src=URL.createObjectURL(f); prev.hidden=false; };
+  cam.onchange=()=>pick(cam.files[0]); gal.onchange=()=>pick(gal.files[0]);
+  const name=el("input",{type:"text",placeholder:"Ya dawai ka naam likho (jaise Panadol Extra, Augmentin 625)"});
+  const who=el("select",{"aria-label":"Kis ke liye"},...["Mere liye","Bachay ke liye","Bazurg ke liye","Pregnant / doodh pilane wali maa"].map(x=>el("option",{},x)));
+  const blk=aiBlock(); const b=el("button",{class:"btn primary",type:"button"},"💊 Check karo");
+  b.onclick=async()=>{ if(needAI()) return; if(!S.dwFile&&!name.value.trim()){toast("Photo lo ya naam likho");return;} b.disabled=true;
+    let imgs=null; if(S.dwFile){ try{ imgs=[await prepImage(S.dwFile)]; }catch(e){ imgs=[S.dwFile]; } }
+    await runAI({kind:"dawai",text:"Dawai: "+(name.value.trim()||"photo se"),images:imgs,search:true,blk,extra:{title:"Dawai · "+(name.value.trim()||"scan "+today())},prompt:persona()+`\n\nDAWAI SCANNER. ${imgs?"Tasveer mein dawai ka packet/patta hai.":""} ${name.value.trim()?"Naam: "+name.value.trim()+".":""} Kis ke liye: ${who.value}.\nInternet se Pakistan (DRAP) ki maloomat aur qeemat check karo.\n## Yeh kya hai\nBrand, company, salt/generic naam aur taqat (mg).\n## Kis kaam aati hai\n## Kaise kaam karti hai\nAasaan zabaan mein.\n## Aam tareeqa\nKhane se pehle/baad, kitne waqfay se. Dose hamesha doctor ki parchi ke mutabiq; khud dose mat badlo.\n## Side effects\nAam aur khatarnaak (jin par foran doctor).\n## Kin cheezon ke saath nahi\nDoosri dawaiyan, khana, bimariyan (sugar, BP, gurday, jigar).\n## ${who.value} ke liye khaas baat\n## Pakistan mein qeemat aur saste alternatives\nSame salt wale doosre brands aur andaazan qeemat.\n## Asli ya naqli kaise pehchanein\nPacket, batch, expiry, hologram.\n## Kab foran doctor/hospital`+jsonTail("3-5")}); b.disabled=false; };
+  return [hdr("Packet ki photo lo","💊 Dawai scanner","Salt, kis liye, side effects, kin ke saath nahi, aur Pakistan mein saste alternatives."),
+    el("section",{class:"card hot"},el("div",{class:"row"},el("label",{class:"btn primary",for:"dwCam"},"📷 Photo lo",cam),el("label",{class:"btn",for:"dwGal"},"🖼 Gallery",gal)),prev,
+      el("div",{class:"row"},el("div",{class:"grow"},name),micBtn(name)),el("label",{class:"f"},"Kis ke liye",who),el("div",{class:"row"},b),
+      el("p",{class:"small muted",text:"Yeh maloomat ke liye hai. Dawai shuru, band ya dose badalne ka faisla doctor ke saath."})),
+    el("section",{class:"card"},blk.wrap)];
+}
+
+/* ---------- 9. Weekly test + monthly report ---------- */
+function Report(){
+  const T=S.wtest; const box=el("div",{class:"stack"});
+  const tests=S.notes.filter(n=>n.kind==="test").sort((a,b)=>b.ts-a.ts);
+  const startTest=async b=>{ if(needAI()) return; b.disabled=true;
+    let pool=S.cards.filter(c=>c.created>Date.now()-7*DAYMS); if(pool.length<5) pool=S.cards.slice().sort((a,b)=>(b.created||0)-(a.created||0)).slice(0,30);
+    pool=pool.sort(()=>Math.random()-.5).slice(0,10); if(pool.length<3){toast("Abhi itne cards nahi. Pehle kuch seekho.");b.disabled=false;return;}
+    box.replaceChildren(el("p",{class:"thinking",text:"Test ban raha hai"}));
+    try{ const arr=await S.sample.json(`In yaad-cards se ek MCQ test banao (har card ka ek sawal, usi tarteeb mein). Ghalat options aise ho jo sahi lagein. Roman Urdu.\n${pool.map((c,i)=>(i+1)+". Q: "+c.q+" | A: "+c.a).join("\n")}\nReply sirf JSON array: [{"q":"...","o":["A","B","C","D"],"a":0,"why":"1 line"}]`,{cache:false});
+      const qs=(Array.isArray(arr)?arr:[]).slice(0,pool.length).map((x,i)=>({...x,cid:pool[i].id})).filter(x=>x.q&&Array.isArray(x.o)&&Number.isInteger(x.a)); if(!qs.length) throw {code:"bad_json"};
+      S.wtest={qs,i:0,right:0,picked:null}; render();
+    }catch(e){ box.replaceChildren(el("p",{class:"err",text:errMsg(e)})); b.disabled=false; } };
+  let testCard;
+  if(T&&T.i<T.qs.length){
+    const q=T.qs[T.i];
+    testCard=el("section",{class:"card hot"},el("div",{class:"stamp",text:"Sawal "+(T.i+1)+" / "+T.qs.length+" · "+T.right+" sahi"}),el("h3",{text:q.q}),
+      el("div",{class:"list"},...q.o.map((o,k)=>{ let cls="item opt"; if(T.picked!==null){ if(k===q.a) cls+=" right"; else if(k===T.picked) cls+=" wrong"; }
+        return el("button",{class:cls,type:"button",disabled:T.picked!==null,onclick:()=>{ T.picked=k; const ok=k===q.a; if(ok) T.right++; const c=S.cards.find(x=>x.id===q.cid); if(c&&!ok) store.patch("cards",c.id,schedule(c,0)).catch(()=>{}); render(); }},el("b",{text:"ABCD"[k]}),el("div",{class:"grow",text:o})); })),
+      T.picked===null?null:el("div",{class:"stack"},el("p",{class:"small",text:q.why||""}),el("button",{class:"btn primary",type:"button",onclick:async()=>{ T.i++; T.picked=null;
+        if(T.i>=T.qs.length){ const pct=Math.round(T.right/T.qs.length*100); await store.put("notes",uid(),{kind:"test",text:"Hafte ka test",ai:"Score: **"+T.right+"/"+T.qs.length+" ("+pct+"%)**\n\n"+T.qs.map(x=>"- "+x.q+" → "+x.o[x.a]).join("\n"),title:"Hafte ka test "+today()+" · "+pct+"%",cat:"Skills",sub:"Memory",ts:Date.now(),day:today(),score:pct}); }
+        render(); }},T.i+1>=T.qs.length?"Natija dekho":"Agla")));
+  } else if(T){
+    const pct=Math.round(T.right/T.qs.length*100);
+    testCard=el("section",{class:"card hot"},el("div",{class:"stamp",text:"Natija"}),el("h1",{text:pct+"%"}),el("p",{text:T.right+" / "+T.qs.length+" sahi. "+(pct>=80?"Zabardast! 🔥":pct>=50?"Theek hai, ghalat wale cards dobara aayenge.":"Koi baat nahi, ghalat cards kal phir aayenge.")}),el("div",{class:"row"},el("button",{class:"btn",type:"button",onclick:()=>{S.wtest=null;render();}},"Theek hai")));
+  } else {
+    const b=el("button",{class:"btn primary",type:"button"},"📝 Hafte ka test do"); b.onclick=()=>startTest(b);
+    testCard=el("section",{class:"card hot"},el("div",{class:"stamp",text:"Hafte ka test"}),el("p",{class:"small muted",text:"Is hafte ke cards se 10 MCQ. Ghalat jawab wale cards dobara dohraye jayenge."}),el("div",{class:"row"},b),box,
+      tests.length?el("p",{class:"small",text:"Pichle test: "+tests.slice(0,6).map(t=>(t.score!=null?t.score:"?")+"%").join(" · ")}):null);
+  }
+  const blk=aiBlock(); const mb=el("button",{class:"btn primary",type:"button"},"📊 Is mahine ki report");
+  mb.onclick=async()=>{ if(needAI()) return; mb.disabled=true;
+    const since=Date.now()-30*DAYMS; const ns=S.notes.filter(n=>n.ts>since);
+    const byCat={}; ns.forEach(n=>{byCat[n.cat]=(byCat[n.cat]||0)+1;}); const byKind={}; ns.forEach(n=>{byKind[n.kind]=(byKind[n.kind]||0)+1;});
+    const cards=S.cards.filter(c=>c.created>since).length; const pakke=S.cards.filter(c=>(c.ivl||0)>=21).length; const weak=S.cards.filter(c=>(c.lapses||0)>=2).slice(0,10).map(c=>c.q).join(" | ");
+    const lads=(S.settings.ladders||[]).map(l=>l.title+" "+ladderPct(l)+"%").join(", "); const crs=(S.settings.courses||[]).map(c=>c.title+" "+(c.done||[]).length+"/"+c.days.length).join(", ");
+    const moods=S.notes.filter(n=>n.kind==="diary"&&n.ts>since).map(n=>n.mood); const tsc=tests.filter(t=>t.ts>since).map(t=>t.score);
+    await runAI({kind:"monthly",text:"Mahine ki report "+today(),blk,extra:{title:"Mahine ki report "+new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})},prompt:persona()+`\n\nMAHINE KI REPORT (pichle 30 din).\nRank: ${rank().name}, ${xp()} XP, streak ${streak()} din.\nNotes: ${ns.length}. Field-wise: ${JSON.stringify(byCat)}. Qisam: ${JSON.stringify(byKind)}.\nNaye cards: ${cards}. Kul pakke (21+ din) cards: ${pakke}. Bhoolne wale: ${weak||"-"}.\nSeerhiyan: ${lads||"-"}. Courses: ${crs||"-"}. Test scores: ${tsc.join(", ")||"-"}. Diary moods (1-5): ${moods.join(",")||"-"}.\nNotes ke titles: ${ns.slice(0,60).map(n=>n.title).join("; ")}\n\n## Mahine ka report card\nHar field ka grade (A-F) ek table mein.\n## Sab se bari kamyabi\n## Kahan peeche reh gaye\n## Ilm ka nichor\nIs mahine ki 7 sab se aham baatein jo seekhi.\n## Agle mahine ke 3 goals\nNaapne ke qabil.\n## Ustad ki sakht naseehat`+jsonTail("3-5")}); mb.disabled=false; };
+  return [hdr("Hisaab kitaab","📊 Test & report"),testCard,el("section",{class:"card"},el("div",{class:"stamp",text:"Mahine ki report"}),el("p",{class:"small muted",text:"30 din ka report card: har field ka grade, kya seekha, kya reh gaya, agle mahine ke goals."}),el("div",{class:"row"},mb),blk.wrap)];
+}
+
+/* ---------- 10. Backup reminder ---------- */
+async function backupNow(){
+  const data=JSON.stringify({exported:new Date().toISOString(),notes:S.notes,cards:S.cards,tasks:S.tasks,prices:S.prices,settings:S.settings},null,1);
+  try{ await S.downloads.save({filename:"ustad-backup-"+today()+".json",data}); await setS("lastBackup",Date.now()); toast("Backup Downloads folder mein ✓ Isay Google Drive ya WhatsApp (apne aap ko) bhej do."); render(); }
+  catch(e){ toast("Backup save nahi hua"); }
+}
+function homeAlerts(){
+  const out=[]; const lb=S.settings.lastBackup||0;
+  if(S.notes.length+S.cards.length>=10&&Date.now()-lb>7*DAYMS) out.push(el("div",{class:"banner"},(lb?"Pichla backup "+Math.floor((Date.now()-lb)/DAYMS)+" din pehle. ":"Abhi tak koi backup nahi. ")+"Phone gum ho to sab chala jayega. ",el("button",{class:"btn sm",type:"button",onclick:backupNow},"Backup lo (1 tap)")));
+  for(const [p,d] of bdaysSoon(3)) out.push(el("div",{class:"banner"},"🎂 "+p.name+" ka birthday "+(d===0?"AAJ":d===1?"kal":d+" din baad")+" hai. ",el("button",{class:"btn sm",type:"button",onclick:()=>go("person",p.id)},"Dekho")));
+  return out;
+}
+function lifeTiles(){
+  return el("div",{class:"catgrid"},
+    tile("🧠","Meri baatein","Ustad aap ko yaad rakhe",()=>go("profile")),
+    tile("🔎","Notes se poochho","\"Maine kya seekha tha...?\"",()=>go("poocho")),
+    tile("👥","Log","Har insaan ka card, birthday",()=>go("log")),
+    tile("📔","Diary","Mood, neend, patterns",()=>go("diary")),
+    tile("📋","Kal ki tayyari","Doctor, mechanic, interview",()=>go("tayyari")),
+    tile("💊","Dawai scanner","Packet ki photo lo",()=>go("dawai")),
+    tile("🚶","Chalte phirte","Hands-free dars, gaari mein",()=>go("walk")),
+    tile("🧑‍🏫","Ustad ko sikhao","Samjhao, number pao",()=>go("sikhao")),
+    tile("📊","Test & report","Hafte ka test, mahine ka report",()=>go("report")));
+}
+
 </script>
 <script>
 "use strict";
@@ -967,8 +1252,8 @@ Islami baaton mein: ayat ka hawala (Surah:Ayat), hadees ka source aur number (Bu
 Medical, legal aur paison ki baaton mein poori detail samjhao, lekin aakhri faisla qualified expert ke saath.
 Nashay, jurm, gangsters, fraud jaise topics: history, criminology, qanoon, sehat par asar, aur khud aur doosron ko bachane ke angle se gehra ilm do; banane, karne ya chhupane ka operational tareeqa nahi.
 Logon ko parhna, baatein nikalwana, charisma: psychology aur research par mabni, izzat aur achi niyat ke saath; manipulation ya kisi ko nuqsan pohanchane wala tareeqa nahi.
-Tumhare paas live internet nahi: prices aur news tumhara ilm aur andaza hai. Jahan zaroori ho yeh wazeh likho.
-Headings ke liye ## aur ###, lists ke liye "- " use karo.`;
+Jab Google Search ke results milein to taaza maloomat use karo; warna prices aur news tumhara andaza hain, yeh wazeh likho.
+Headings ke liye ## aur ###, lists ke liye "- " use karo.`+profileText();
 }
 function jsonTail(n="4-8"){
   return `\n\nJawab ke bilkul END mein ek nayi line par sirf ${MARK} likho, aur uske baad sirf ek JSON object (koi aur text nahi):
@@ -1152,8 +1437,8 @@ function noteRow(n){
       el("div",{class:"s",text:fmtDT(n.ts)+" · "+n.cat+(n.sub?" / "+n.sub:"")})),
     el("span",{class:"tag k-"+n.kind,text:KIND[n.kind]||n.kind}));
 }
-const KIND={expert:"expert",kitaab:"kitaab",panch:"5 min",factcheck:"sach/jhoot",plan:"plan",note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
-const KIND_XP={expert:20,kitaab:25,panch:30,factcheck:15,plan:10,voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
+const KIND={diary:"diary",mood:"mood",walk:"chalte",teachback:"sikhaya",tayyari:"tayyari",dawai:"dawai",test:"test",monthly:"mahina",expert:"expert",kitaab:"kitaab",panch:"5 min",factcheck:"sach/jhoot",plan:"plan",note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
+const KIND_XP={diary:10,mood:10,walk:35,teachback:35,tayyari:15,dawai:10,test:30,monthly:20,expert:20,kitaab:25,panch:30,factcheck:15,plan:10,voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
 const RANKS=[[0,"Recruit"],[250,"Observer"],[700,"Analyst"],[1600,"Field Agent"],[3500,"Senior Agent"],[7000,"Station Chief"],[15000,"Top 1%"]];
 function xp(){ let x=0; for(const n of S.notes) x+=KIND_XP[n.kind]||10; for(const c of S.cards) x+=(c.reps||0)*3; return x; }
 function rank(){ const x=xp(); let i=0; while(i+1<RANKS.length&&x>=RANKS[i+1][0]) i++; const cur=RANKS[i],nxt=RANKS[i+1]; return {x,name:cur[1],next:nxt&&nxt[1],pct:nxt?(x-cur[0])/(nxt[0]-cur[0]):1,need:nxt?nxt[0]-x:0}; }
@@ -1999,7 +2284,7 @@ function Settings(){
   const backup=el("button",{class:"btn",type:"button",onclick:async()=>{
     const data=JSON.stringify({exported:new Date().toISOString(),notes:S.notes,cards:S.cards,tasks:S.tasks,prices:S.prices,settings:S.settings},null,1);
     if(!S.downloads){toast("Download yahan available nahi");return;}
-    try{ await S.downloads.save({filename:"ustad-backup-"+today()+".json",data}); }catch(e){ toast("Backup save nahi hua"); }
+    try{ await S.downloads.save({filename:"ustad-backup-"+today()+".json",data}); store.settings({lastBackup:Date.now()}); }catch(e){ toast("Backup save nahi hua"); }
   }},"Backup download karo");
   const calB=el("button",{class:"btn primary",type:"button",onclick:async()=>{
     if(!S.downloads){toast("Download yahan available nahi. Neeche wala tareeqa use karein.");return;}
