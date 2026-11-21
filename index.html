@@ -475,6 +475,7 @@ function moreTiles(){
     tile("🧠","Ilm ka naqsha","Kahan mazboot, kahan kamzor",()=>go("naqsha")),
     tile("📰","Akhbar & rates","Live khabrein, sona, dollar, petrol",()=>go("akhbar")),
     tile("📤","Share se bhejo","YouTube, link, WhatsApp forward",()=>go("share",{help:true})),
+    tile("🎧","Rap se seekho","References, slang, hip-hop history",()=>go("rap")),
     tile("🪜","Seerhi","Basic → Intermediate → Advanced → Pro",()=>go("seerhi"),true));
 }
 function homeMore(){ return el("div",{class:"stack"},el("section",{class:"card"},el("div",{class:"stamp",text:"Meri zindagi"}),lifeTiles()),el("section",{class:"card"},el("div",{class:"stamp",text:"Aur seekho"}),moreTiles())); }
@@ -1080,6 +1081,7 @@ const GUIDE=[
   ["🪜","Seerhi (Basic se Pro)","Koi bhi field tarteeb se: 4 level, har level mein 5-6 topics, aakhir mein test. Gehra ilm isi se aata hai.",["Seekho > koi field > neeche 'Basic se Pro tak'","Ya Seerhi tile se apna topic likho","Roz 1-2 topic, level poora ho to test do"],"seerhi"],
   ["📚","Courses","7-30 din ka plan: roz ek dars + quiz. Seerhi se halka, roz ki aadat ke liye.",["Courses kholo","Topic likho ya chip chuno","Aaj page par 'Din X' button se roz jaari rakho"],"courses"],
   ["📖","Seekho tab","Har field (Deen, Sehat, Psychology, Business, Aurat ki sehat, Janwar...) ke andar subtopic chuno aur lesson lo.",["Neeche Seekho tab","Field chuno, phir subtopic","'Aaj ka lesson' ya quiz"],"seekho"],
+  ["🎧","Rap se seekho","Rap ke gaanon mein history, paisa, jurm, siyasat aur brands ke references hote hain. Gaana samjho to sab cheezein seekh lo. Black American slang (AAVE) ka matlab aur tareekh bhi.",["Aur seekho > Rap se seekho","Gaana / bars: gaane ka naam likho ya lines paste karo","Slang: lafz likho ya 'Aaj ke 10 slang'","Hip-hop duniya: history ke dars aur Basic se Pro seerhi"],"rap"],
   ["🧑‍🏫","Ustad ko sikhao","Jo seekha usay apne lafzon mein samjhao. Ustad number dega aur ghaltiyan batayega. Yaad rakhne ka sab se pakka tareeqa.",["Topic chuno","Bara mic dabao aur bachay ko samjhane ki tarah bolo","Number aur 'Behtar explanation' parho"],"sikhao"],
   ["📄","Kitaab / PDF","Kitaab ki PDF daalo: khulasa, chapters, phir jo hissa chaho samjho.",["PDF chuno (14 MB tak)","Khulasa + chapters","Neeche chapter ka naam likh kar 'Samjhao'"],"kitaab"],
   ["🧠","Ilm ka naqsha","Dekho kis field mein mazboot ho, kis mein kamzor. Button se agle 7 din ka plan lo.",[],"naqsha"]]},
@@ -1127,6 +1129,50 @@ function Guide(){
             el("button",{class:"btn sm"+(done.has(k)?"":" ghost"),type:"button",onclick:()=>mark(k)},done.has(k)?"✓ Seekh liya":"Seekh liya")))); })))];
 }
 
+/* ===== Rap se seekho: references, wordplay, slang (AAVE), hip-hop history ===== */
+EXTRA.rap=Rap;
+const RAP_TABS=[["bars","🎧 Gaana / bars"],["slang","🗣 Slang"],["history","📜 Hip-hop duniya"]];
+const RAP_SONG_IDEAS=["Kendrick Lamar – Alright","Jay-Z – The Story of O.J.","Nas – N.Y. State of Mind","2Pac – Changes","Eminem – Lose Yourself","J. Cole – Love Yourz","Drake – Started From the Bottom","Kanye West – All Falls Down","Talha Anjum – Kaun Talha","Seedhe Maut – Nanchaku"];
+const SLANG_IDEAS=["cap / no cap","bussin","finna","opp","drip","plug","bread / guap","ice","the trap","OG","dead presidents","Benjamins","yeet","bet","lowkey / highkey","sus","bando","feds","on God","shorty"];
+const RAP_HISTORY=["Hip-hop ka janam: 1973 Bronx, DJ Kool Herc","Hip-hop ke 4 elements: DJ, MC, breaking, graffiti","East Coast vs West Coast: 2Pac aur Biggie","Crack era, Reagan aur rap ki kahaniyan","Civil rights, Black Panthers aur rap ke references","Mafia references: Scarface, Godfather, Pablo Escobar","Money references: dead presidents, Benjamins, Rolex, Patek","AAVE: Black American English ki grammar aur tareekh","Wordplay ki qismein: double entendre, punchline, multis","Desi hip-hop: Pakistan aur India ka rap"];
+const RAP_RULES=`\nQawaid: gaane ke poore lyrics copy mat karo; har bar/line ka sirf chhota tukra (zyada se zyada ek line) quote karo aur baaki apne lafzon mein samjhao. Black American culture aur AAVE ko izzat se ek mukammal zabaan/culture ki tarah samjhao. Jo lafz gaali ya nasli (racial) hain unka matlab aur tareekh batao, lekin saaf likho ke user ko kab aur kyun yeh lafz bilkul use nahi karna. Drugs/jurm ke references: matlab, tareekh aur samaji pas-manzar batao, tareeqa nahi.`;
+function Rap(){
+  const tab=S.rapTab||"bars"; const blk=aiBlock(); let last=null;
+  const tabs=el("div",{class:"chips"},...RAP_TABS.map(([k,l])=>el("button",{class:"chip",type:"button","aria-pressed":String(k===tab),onclick:()=>{S.rapTab=k;render();}},l)));
+  const runP=async(btn,prompt,kind,text,title)=>{ if(needAI()) return; btn.disabled=true; last=await runAI({prompt,kind,text,blk,search:true,extra:{title}}); btn.disabled=false; };
+  let body;
+  if(tab==="bars"){
+    const song=el("input",{type:"text",placeholder:"Gaane ka naam aur rapper (jaise: Jay-Z – Empire State of Mind)"});
+    const bars=el("textarea",{placeholder:"Ya woh bars/lines paste karo jo samajh nahi aayin (optional)",style:"min-height:90px"});
+    const b1=el("button",{class:"btn primary",type:"button"},"Poora gaana samjhao");
+    b1.onclick=()=>{ const s=song.value.trim(), x=bars.value.trim(); if(!s&&!x){toast("Gaane ka naam ya bars do");return;}
+      runP(b1,persona()+`\n\nRAP SE ILM. ${s?"Gaana: "+s+".":""}${x?`\nUser ki di hui lines:\n"""${x.slice(0,3000)}"""`:""}\nInternet se gaane ki maloomat aur references check karo.${RAP_RULES}\n## Gaana kis baare mein hai\nRapper kaun, kab, kis maahol mein likha.\n## Bar-by-bar references\nHar aham reference: chhota tukra → kis cheez ka hawala (shakhs, waqia, jagah, brand, film, kitaab, sports) → us cheez ki asal kahani 2-3 line mein.\n## Slang dictionary\nTable: lafz | matlab | kahan se aaya | misaal.\n## Wordplay aur double meaning\nPunchlines aur dohre matlab kholo.\n## Tareekh aur culture\nIs gaane ke peeche ki asal history (jaise civil rights, crack era, poverty, police).\n## Mehfil ki baat\n3 interesting facts jo dosto ko sunao.\n## Aage kya suno\nIsi topic par 3 aur gaane aur kyun.`+jsonTail("8-12"),"rap",(s||"")+(x?"\n"+x.slice(0,500):""),"Rap · "+(s||"bars").slice(0,50)); };
+    const b2=el("button",{class:"btn",type:"button"},"Sirf yeh line samjhao");
+    b2.onclick=()=>{ const x=bars.value.trim(); if(!x){toast("Neeche line paste karo");return;}
+      runP(b2,persona()+`\n\nYeh rap line(s) samjhao${song.value.trim()?" ("+song.value.trim()+")":""}:\n"""${x.slice(0,1500)}"""\n${RAP_RULES}\nHar lafz aur reference kholo: seedha matlab, chhupa matlab, slang, aur jis cheez ka hawala hai uski asal kahani. Phir batao rapper asal mein kya keh raha hai.`+jsonTail("4-8"),"rap",x.slice(0,500),"Rap line · "+x.slice(0,40)); };
+    body=el("section",{class:"card"},el("div",{class:"row"},el("div",{class:"grow"},song),micBtn(song)),bars,el("div",{class:"row"},b1,b2,speakBtn(()=>last&&last.body)),
+      el("p",{class:"small muted",text:"Shuru ke liye:"}),el("div",{class:"chips"},...RAP_SONG_IDEAS.map(x=>el("button",{class:"chip",type:"button",onclick:()=>{song.value=x;}},x))),blk.wrap);
+  } else if(tab==="slang"){
+    const w=el("input",{type:"text",placeholder:"Koi slang lafz (jaise: no cap, opp, drip)"});
+    const b1=el("button",{class:"btn primary",type:"button"},"Matlab batao");
+    b1.onclick=()=>{ const v=w.value.trim(); if(!v){toast("Lafz likho");return;}
+      runP(b1,persona()+`\n\nSLANG: "${v}"${RAP_RULES}\n## Matlab\nSeedha matlab aur har dusra matlab.\n## Kahan se aaya\nAAVE, hip-hop, kaunsa sheher/daur, kis rapper ne mashhoor kiya.\n## Kaise bolte hain\nPronunciation (Roman mein) aur 3 misaal jumlay.\n## Kab use karein, kab nahi\nKis maahol mein theek, kab ajeeb ya beizzati lagega.\n## Mashhoor bars\n2-3 gaanon ke naam jahan aata hai (sirf chhota tukra).\n## Milte julte lafz`+jsonTail("3-5"),"slang","Slang: "+v,"Slang · "+v); };
+    const b2=el("button",{class:"btn",type:"button"},"🎲 Aaj ke 10 slang");
+    b2.onclick=()=>{ const seen=S.notes.filter(n=>n.kind==="slang").slice(0,40).map(n=>n.title).join(", ");
+      runP(b2,persona()+`\n\nAAJ KE 10 SLANG: hip-hop aur Black American (AAVE) ke 10 aam aur kaam ke slang/phrases jo rap mein bohot aate hain. Yeh pehle ho chuke, repeat mat karo: ${seen||"-"}.${RAP_RULES}\nHar ek: ### lafz → matlab, origin, ek misaal jumla, aur kis mashhoor gaane mein aata hai (sirf naam). Aakhir mein "## AAVE grammar ka ek rule" (jaise habitual "be", double negative) misaal ke saath.`+jsonTail("10"),"slang","10 slang "+today(),"10 slang · "+today()); };
+    body=el("section",{class:"card"},el("div",{class:"row"},el("div",{class:"grow"},w),micBtn(w)),el("div",{class:"row"},b1,b2,speakBtn(()=>last&&last.body)),
+      el("div",{class:"chips"},...SLANG_IDEAS.map(x=>el("button",{class:"chip",type:"button",onclick:()=>{w.value=x;}},x))),blk.wrap);
+  } else {
+    const b=el("button",{class:"btn primary",type:"button"},"🪜 Hip-hop: Basic se Pro seerhi"); const msg=el("div");
+    b.onclick=()=>makeLadder("Hip-hop aur rap: tareekh, references, slang (AAVE) aur wordplay samajhna","Art & Music","Hip-hop",b,msg);
+    body=el("section",{class:"card"},el("p",{class:"small muted",text:"Rap ke references tab samajh aate hain jab peeche ki history pata ho. Koi topic dabao:"}),
+      el("div",{class:"list"},...RAP_HISTORY.map(x=>{ const it=el("button",{class:"item",type:"button"},el("div",{class:"grow t",text:x}),el("span",{class:"small muted",text:"→"}));
+        it.onclick=()=>runP(it,lessonPrompt("Art & Music","Hip-hop",x+". Rap mein is ke references kaise aate hain, mashhoor gaanon ke naam ke saath (lyrics copy kiye baghair).")+RAP_RULES,"lesson",x,"Hip-hop · "+x.slice(0,50)); return it; })),
+      el("div",{class:"row"},b),msg,blk.wrap);
+  }
+  return [hdr("Gaano se ilm","🎧 Rap se seekho","Rap mein history, paisa, jurm, siyasat, brands aur slang ke references hote hain. Ek gaana samjho to 10 cheezein seekh lo."),tabs,body];
+}
+
 </script>
 <script>
 "use strict";
@@ -1153,7 +1199,7 @@ const CATS = {
   "Duniya":["Pakistan","World politics","Economy","Tech duniya"],
   "Sports":["Cricket","Football","Tennis","Hockey","Fighting & self-defense","Others"],
   "Games":["Chess","Video games","Card games","Sharp aggressive play","Strategy"],
-  "Art & Music":["Music theory","Guitar","Hip-hop","Dance","Poetry","Painting & art","Songs"],
+  "Art & Music":["Music theory","Guitar","Hip-hop","Rap references","Slang (AAVE)","Rap wordplay","Desi hip-hop","Dance","Poetry","Painting & art","Songs"],
   "Entertainment":["Movies","Series","Songs & music","Books","Comedy"],
   "Lifestyle":["Cars","Bikes","Watches","Perfumes","Jewelry","Shoes","Dressing & style","Gents fashion","Ladies fashion","Grooming"],
   "Careers & Idaray":["Pilot","Navy","Army","Police","Bureaucrat (CSS)","Manager","Lawyer","Judge","Doctor","Engineer"],
@@ -1509,8 +1555,8 @@ function noteRow(n){
       el("div",{class:"s",text:fmtDT(n.ts)+" · "+n.cat+(n.sub?" / "+n.sub:"")})),
     el("span",{class:"tag k-"+n.kind,text:KIND[n.kind]||n.kind}));
 }
-const KIND={diary:"diary",mood:"mood",walk:"chalte",teachback:"sikhaya",tayyari:"tayyari",dawai:"dawai",test:"test",monthly:"mahina",expert:"expert",kitaab:"kitaab",panch:"5 min",factcheck:"sach/jhoot",plan:"plan",note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
-const KIND_XP={diary:10,mood:10,walk:35,teachback:35,tayyari:15,dawai:10,test:30,monthly:20,expert:20,kitaab:25,panch:30,factcheck:15,plan:10,voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
+const KIND={diary:"diary",mood:"mood",walk:"chalte",teachback:"sikhaya",tayyari:"tayyari",dawai:"dawai",test:"test",monthly:"mahina",rap:"rap",slang:"slang",expert:"expert",kitaab:"kitaab",panch:"5 min",factcheck:"sach/jhoot",plan:"plan",note:"note",night:"raat",morning:"subah",lens:"lens",replay:"replay",visit:"visit",critique:"critique",lesson:"lesson",debate:"behas",question:"sawal",language:"zabaan",news:"duniya",quiz:"quiz",roleplay:"role-play",person:"insaan",weekly:"hafta",gyaan:"gyaan",chat:"baat",voice:"awaaz",podcast:"do log",video:"video"};
+const KIND_XP={diary:10,mood:10,walk:35,teachback:35,tayyari:15,dawai:10,test:30,monthly:20,rap:25,slang:15,expert:20,kitaab:25,panch:30,factcheck:15,plan:10,voice:35,podcast:15,video:20,note:10,night:25,morning:25,lens:15,replay:20,visit:25,critique:15,lesson:20,debate:40,question:10,language:20,news:15,quiz:30,roleplay:35,person:15,weekly:30,gyaan:15,chat:10};
 const RANKS=[[0,"Recruit"],[250,"Observer"],[700,"Analyst"],[1600,"Field Agent"],[3500,"Senior Agent"],[7000,"Station Chief"],[15000,"Top 1%"]];
 function xp(){ let x=0; for(const n of S.notes) x+=KIND_XP[n.kind]||10; for(const c of S.cards) x+=(c.reps||0)*3; return x; }
 function rank(){ const x=xp(); let i=0; while(i+1<RANKS.length&&x>=RANKS[i+1][0]) i++; const cur=RANKS[i],nxt=RANKS[i+1]; return {x,name:cur[1],next:nxt&&nxt[1],pct:nxt?(x-cur[0])/(nxt[0]-cur[0]):1,need:nxt?nxt[0]-x:0}; }
